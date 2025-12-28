@@ -21,10 +21,10 @@ jobs:
       run: dotnet restore
 
     - name: Build
-      run: dotnet build --configuration Release
+      run: dotnet build ./Linqlite/Linqlite.csproj --configuration Release
 
     - name: Pack
-      run: dotnet pack --configuration Release --output ./nupkg
+      run: dotnet pack ./Linqlite/Linqlite.csproj --configuration Release --output ./nupkg
 
     - name: Publish to NuGet
       run: dotnet nuget push "./nupkg/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json

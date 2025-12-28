@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../LinqliteTests/LinqliteTests.csproj" Id="4060dfec-2dbb-440a-be00-297e54668bc9" />
+  <Project Path="Linqlite.csproj" />
+</Solution>

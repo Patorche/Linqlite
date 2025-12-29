@@ -30,7 +30,7 @@ namespace Linqlite.Linq
         public void Insert<T>(T entity)
         {
             // 1. Extraire les colonnes et valeurs
-            var map = EntityMap<T>.Columns;
+            var map = EntityMap.Get(entity.GetType()).Columns;
 
             // 2. Construire un dictionnaire { columnName → value }
             var values = new Dictionary<string, object?>();

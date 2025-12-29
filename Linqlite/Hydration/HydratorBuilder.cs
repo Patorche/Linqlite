@@ -15,8 +15,8 @@ namespace Linqlite.Hydration
             {
                 Expression.Assign(entityVar, Expression.New(typeof(T)))
             };
-
-            foreach (var col in EntityMap<T>.Columns)
+            
+            foreach (var col in EntityMap.Get(typeof(T)).Columns)
             {
                 // reader.GetValue("column")
                 var getValueCall = Expression.Call(

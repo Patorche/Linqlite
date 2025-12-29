@@ -4,7 +4,7 @@ using Linqlite.Sqlite;
 
 namespace Linqlite.Models
 {
-    [SqliteTableAttribute("PHOTO")]
+    [TableAttribute("PHOTO")]
     public class Photo : SqliteObservableEntity
     {
         private int _rate = 0;
@@ -15,31 +15,31 @@ namespace Linqlite.Models
         private bool _isLoadingImage = false;
         private string? _author = null;
 
-        [SqliteColumnAttribute(ColumnName = "id", IsKey = true)]
+        [ColumnAttribute(ColumnName = "id", IsKey = true)]
         public long? Id { get; set; }
-        [SqliteColumnAttribute(ColumnName = "filename", OnConflict = true)]
+        [ColumnAttribute(ColumnName = "filename", OnConflict = true)]
         public string Filename { get; set; } = string.Empty;
-        [SqliteColumnAttribute(ColumnName = "takendate")]
+        [ColumnAttribute(ColumnName = "takendate")]
         public DateTime? TakenDate { get; set; } = DateTime.Now;
-        [SqliteColumnAttribute(ColumnName = "folder", OnConflict = true)]
+        [ColumnAttribute(ColumnName = "folder", OnConflict = true)]
         public string Folder { get; set; } = string.Empty;
-        [SqliteColumnAttribute(ColumnName = "width")]
+        [ColumnAttribute(ColumnName = "width")]
         public int Width { get; set; } = 0;
-        [SqliteColumnAttribute(ColumnName = "height")]
+        [ColumnAttribute(ColumnName = "height")]
         public int Height { get; set; } = 0;
-        [SqliteColumnAttribute(ColumnName = "type")]
+        [ColumnAttribute(ColumnName = "type")]
         public string Type { get; set; } = string.Empty;// JPEG, PEF etc
-        [SqliteColumnAttribute(ColumnName = "author")]
+        [ColumnAttribute(ColumnName = "author")]
         public string? Author
         {
             get => _author;
             set => SetProperty(ref _author, value);
         }
-        [SqliteColumnAttribute(ColumnName = "camera")]
+        [ColumnAttribute(ColumnName = "camera")]
         public string? CameraName { get; set; }
-        [SqliteColumnAttribute(ColumnName = "make")]
+        [ColumnAttribute(ColumnName = "make")]
         public string? Make { get; set; } = string.Empty;
-        [SqliteColumnAttribute(IsObjectProperty = true)]
+        [ColumnAttribute(IsObjectProperty = true)]
         public GpsLocalisation? Localisation
         {
             get => _localisation;
@@ -52,11 +52,11 @@ namespace Linqlite.Models
             }
         }
 
-        [SqliteColumnAttribute(IsObjectProperty = true)]
+        [ColumnAttribute(IsObjectProperty = true)]
         public CameraSetting CameraSetting { get; set; }
 
         public string? Focal { get; set; } = string.Empty; // 50mm, 18-55mm etc
-        [SqliteColumnAttribute(ColumnName = "rate")]
+        [ColumnAttribute(ColumnName = "rate")]
         public int Rate
         {
             get => _rate;
@@ -69,14 +69,14 @@ namespace Linqlite.Models
             }
         }      
 
-        [SqliteColumnAttribute(ColumnName = "thumbwidth")]
+        [ColumnAttribute(ColumnName = "thumbwidth")]
         public int ThumbWidth
         {
             get => _thumbWidth;
             set => SetProperty(ref _thumbWidth, value);
         }
 
-        [SqliteColumnAttribute(ColumnName = "thumbheight")]
+        [ColumnAttribute(ColumnName = "thumbheight")]
         public int ThumbHeight
         {
             get => _thumbHeight;
@@ -84,7 +84,7 @@ namespace Linqlite.Models
         }
 
 
-        [SqliteColumnAttribute(ColumnName = "orientation")]
+        [ColumnAttribute(ColumnName = "orientation")]
         public int Orientation { get; set; }
 
 

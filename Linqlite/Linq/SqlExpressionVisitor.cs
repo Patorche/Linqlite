@@ -1,4 +1,5 @@
 ﻿using Linqlite.Attributes;
+using Linqlite.Mapping;
 using Linqlite.Sqlite;
 using SQLitePCL;
 using System;
@@ -8,6 +9,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Xml.Linq;
 
 namespace Linqlite.Linq
 {
@@ -18,6 +20,8 @@ namespace Linqlite.Linq
         private bool _fromGenerated = false;
         private Dictionary<Type, string> _aliases = new();
         private Dictionary<Type, string> _tables= new();
+        private Dictionary<Type, EntityMap> _entityMaps = new();
+
         private int _aliasCounter = 0;
 
         private static readonly Dictionary<string, Action<MethodCallExpression, SqlExpressionVisitor>> _handlers = new()
@@ -58,17 +62,12 @@ namespace Linqlite.Linq
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            //foreach (var arg in node.Arguments) Visit(arg);
-
-
             if (_handlers.TryGetValue(node.Method.Name, out var handler))
             {
                 handler(node, this);
                 return node;
-             //   return visited;
             }
             return node;
-            //return visited;
         }
         
         private static void HandleWhere(MethodCallExpression node, SqlExpressionVisitor v)
@@ -271,16 +270,20 @@ namespace Linqlite.Linq
             //var lambda = (LambdaExpression)StripQuotes(node);
             var type = GetEntityType(node);
             var alias = GetAlias(type);
-            _sb.Append($"{alias}.{node.Member.Name.ToLower()}");
+            //var column = GetColumnName(type, node.Member.Name);
+            var column = GetColumnName(type, node);
+            _sb.Append($"{alias}.{column}");
             return node;
         }
 
+       
 
         protected override Expression VisitConstant(ConstantExpression node)
         {
             if (node.Value is IQueryable q)
             {
                 var entityType = q.ElementType; // <== Photo, GpsLocalisation, etc.
+                EnsureFrom(entityType);
                 return node; 
             }
             
@@ -369,7 +372,7 @@ namespace Linqlite.Linq
             // Ici. On peut avoir qqchose comme p.q.Property
             // Deux cas : soit q correspond à une propriété de la classe asociée à p qui n'est pas associée à un table et on doit remonter jusqu'à p.
             // Soit, qu correspond bien à une table  et on ss'arrête là.
-            while (expr is MemberExpression m &&  string.IsNullOrEmpty(GetTableName(m.Type)))
+            while (expr is MemberExpression m && !IsTable(m.Type)) // string.IsNullOrEmpty(GetTableName(m.Type)))
                 expr = m.Expression;
 
             if (expr == null)
@@ -385,24 +388,29 @@ namespace Linqlite.Linq
             return t;
         }
 
+        private bool IsTable(Type type)
+        {
+            if(EntityMap.Get(type) == null) return false;
+            return true;
+        }
+
         private  string GetTableName(Type type)
         {
-            if (_tables.TryGetValue(type, out var tablename))
-                return tablename;
+            return EntityMap.Get(type).TableName;
+        }
 
-            tablename = "";
-            List<Attribute> attributes = [.. type.GetCustomAttributes()];
-            foreach (Attribute attribute in attributes)
-            {
-                if (attribute.GetType() == typeof(SqliteTableAttribute))
-                {
-                    SqliteTableAttribute sqliteTableAttribute = (SqliteTableAttribute)attribute;
-                    tablename = sqliteTableAttribute.TableName;
-                }
+
+        private object GetColumnName(Type type, MemberExpression expression)
+        {
+            // récupération du path 
+            string path = "";
+            Expression exp = expression;
+            while (exp is MemberExpression m)
+            { // string.IsNullOrEmpty(GetTableName(m.Type)))
+                path = m.Member.Name + (string.IsNullOrEmpty(path) ? "" : ".") + path;
+                exp = m.Expression;
             }
-            tablename = tablename.ToUpper();
-            _tables[type] = tablename;
-            return tablename;
+            return EntityMap.Get(type).Column(path);
         }
 
         private static bool IsAnonymousType(Type t)

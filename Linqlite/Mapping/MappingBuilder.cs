@@ -12,11 +12,12 @@ namespace Linqlite.Mapping
             foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
                 // 1. Propriété simple avec attribut
-                var colAttr = prop.GetCustomAttribute<SqliteColumnAttribute>();
+                var colAttr = prop.GetCustomAttribute<ColumnAttribute>();
                 if (colAttr != null)
                 {
                     list.Add(new EntityPropertyInfo
-                    {                        ColumnName = colAttr.ColumnName,
+                    {                        
+                        ColumnName = colAttr.ColumnName,
                         PropertyPath = new[] { prop }
                     });
                 }
@@ -26,7 +27,7 @@ namespace Linqlite.Mapping
                 {
                     foreach (var sub in prop.PropertyType.GetProperties())
                     {
-                        var subAttr = sub.GetCustomAttribute<SqliteColumnAttribute>();
+                        var subAttr = sub.GetCustomAttribute<ColumnAttribute>();
                         if (subAttr != null)
                         {
                             list.Add(new EntityPropertyInfo

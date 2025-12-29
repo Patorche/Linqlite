@@ -10,7 +10,7 @@ namespace Linqlite.Models
         private string _city;
         private string _country;
 
-        [SqliteColumnAttribute(ColumnName = "latitude")]
+        [ColumnAttribute(ColumnName = "latitude")]
         public double? Latitude
         {
             get => _latitude;
@@ -21,7 +21,7 @@ namespace Linqlite.Models
             }
         }
 
-        [SqliteColumnAttribute(ColumnName = "longitude")]
+        [ColumnAttribute(ColumnName = "longitude")]
         public double? Longitude
         {
             get => _longitude;
@@ -33,7 +33,7 @@ namespace Linqlite.Models
         }
 
         
-        [SqliteColumnAttribute(ColumnName = "city")]
+        [ColumnAttribute(ColumnName = "city")]
         public string City
         {
             get => _city;
@@ -44,7 +44,7 @@ namespace Linqlite.Models
             }
         }
 
-        [SqliteColumnAttribute(ColumnName = "country")]
+        [ColumnAttribute(ColumnName = "country")]
         public string Country
         {
             get => _country;

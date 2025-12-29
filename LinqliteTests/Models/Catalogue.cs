@@ -4,22 +4,22 @@ using System.Collections.ObjectModel;
 
 namespace Linqlite.Models
 {
-    [SqliteTableAttribute("LIBRARY")]
+    [TableAttribute("LIBRARY")]
     public class Catalogue : SqliteObservableEntity
     {
-        [SqliteColumnAttribute(ColumnName = "id", IsKey = true)]
+        [ColumnAttribute(ColumnName = "id", IsKey = true)]
         public long Id { get; set; }
         private string _name = string.Empty;
         private ObservableCollection<string> _folders = [];
         private int _totalCount = 0;
 
 
-        [SqliteColumnAttribute(ColumnName = "name")]
+        [ColumnAttribute(ColumnName = "name")]
         public string Name 
         {  get => _name;
             set => SetProperty(ref _name, value);
         }
-        [SqliteColumnAttribute(ColumnName = "creation_date")]
+        [ColumnAttribute(ColumnName = "creation_date")]
         public DateTime CreationDate { get; set; } = DateTime.Now;
         
         public ObservableCollection<string> Folders

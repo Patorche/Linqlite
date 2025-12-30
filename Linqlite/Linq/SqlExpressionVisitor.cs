@@ -6,6 +6,7 @@ using SQLitePCL;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -26,6 +27,7 @@ namespace Linqlite.Linq
         private int? _take;
         private int? _skip;
         private readonly List<string> _orderBy = new();
+        private Dictionary<string, ProjectionMap> _projectionMap = new();
 
         private int _aliasCounter = 0;
 
@@ -42,6 +44,8 @@ namespace Linqlite.Linq
             ["Contains"] = HandleContains,
             ["Join"] = HandleJoin
         };
+
+       
 
         private static readonly Dictionary<ExpressionType, string> _binaryOperators = new()
         {
@@ -211,11 +215,7 @@ namespace Linqlite.Linq
 
             _sb.Append($"{table}.{column}");
         }
-
-
-        
-        Dictionary<string, ProjectionMap> _projectionMap = new();
-        
+      
         private void HandleNewProjection(NewExpression nex)
         {
             var parts = new List<string>();
@@ -355,7 +355,6 @@ namespace Linqlite.Linq
 
             v.Visit(innerExpr);
         }
-
 
         protected override Expression VisitBinary(BinaryExpression node)
         {

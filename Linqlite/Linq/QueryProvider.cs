@@ -11,20 +11,22 @@ namespace Linqlite.Linq
 {
     public class QueryProvider : IQueryProvider, IDisposable
     {
+        private static readonly HashSet<string> _terminalOperators = Enum.GetNames(typeof(TerminalOperator)).ToHashSet();
+
         private string _connectionString = "";
         private SqliteConnection? _connection = null;
 
-        public string ConnectionString 
-        { 
-            get => _connectionString; 
+        public string ConnectionString
+        {
+            get => _connectionString;
             private set => _connectionString = value;
         }
 
-       
+
 
         public QueryProvider()
         {
-            
+
         }
 
         public QueryProvider(string connectionString)
@@ -86,7 +88,7 @@ namespace Linqlite.Linq
             return new QueryableTable<TElement>(this, expression);
         }
 
-        
+
 
 
         public void Insert<T>(T entity) where T : SqliteObservableEntity, new()
@@ -112,36 +114,79 @@ namespace Linqlite.Linq
             object? current = entity;
 
             //foreach (var prop in col.PropertyPath)
-                current = col.PropertyInfo.GetValue(current);
+            current = col.PropertyInfo.GetValue(current);
 
             return current;
         }
 
         public async void Dispose()
         {
-            if(_connection != null)
+            if (_connection != null)
             {
                 await _connection.CloseAsync();
-                _connection.Dispose(); 
+                _connection.Dispose();
             }
         }
 
         public object? Execute(Expression expression)
         {
+            // 1. opérateur terminal ?
+            if (expression is MethodCallExpression mce && IsTerminalOperator(mce.Method.Name))
+            {
+                return ExecuteTerminal(mce);
+            }
+
+            // 2. Sinon, exécution normale (ToList, enumeration, etc.)
+            return ExecuteSequence(expression);
+        }
+
+
+        private object? ExecuteSequence(Expression expression)
+        {
             var sql = Translate(expression);
 
-            // Détecter le type élémentaire
             var elementType = TypeSystem.GetElementType(expression.Type);
 
-            // Appeler SqlQuery<elementType>.Execute(sql, connection)
             var method = typeof(SqlQuery<>)
                 .MakeGenericType(elementType)
                 .GetMethod(nameof(SqlQuery<SqliteObservableEntity>.Execute));
 
-            var result = method.Invoke(null, new object[] { sql, _connection });
-
-            return result;
+            return method.Invoke(null, new object[] { sql, _connection });
         }
+
+        private object? ExecuteTerminal(MethodCallExpression mce)
+        {
+            // La source de la requête (avant First/Single)
+            var sourceExpression = mce.Arguments[0];
+
+            // Exécuter la requête source
+            var sequence = ExecuteSequence(sourceExpression);
+
+            // Convertir en IEnumerable<T>
+            var elementType = TypeSystem.GetElementType(sourceExpression.Type);
+            var castMethod = typeof(Enumerable).GetMethod(nameof(Enumerable.Cast)).MakeGenericMethod(elementType);
+
+            var casted = castMethod.Invoke(null, new[] { sequence });
+
+
+            return EnumerableTerminalOperator(elementType, casted, mce.Method.Name);
+        }
+
+        private object EnumerableTerminalOperator(Type elementType, object casted, string op)
+        {
+            var method = typeof(Enumerable)
+                .GetMethods()
+                .First(m => m.Name == op && m.GetParameters().Length == 1)
+                .MakeGenericMethod(elementType);
+
+            return method.Invoke(null, new[] { casted });
+        }
+
+        private bool IsTerminalOperator(string op)
+        {
+            return _terminalOperators.Contains(op);
+        }
+
 
         private string Translate(Expression expression)
         {
@@ -154,4 +199,8 @@ namespace Linqlite.Linq
         }
     }
 
+    enum TerminalOperator
+    {
+        First, FirstOrDefault, Single, SingleOrDefault, Any, Count
+    }
 }

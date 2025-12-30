@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
+using ZSpitz.Util;
 
 namespace Linqlite.Mapping
 {
@@ -27,9 +28,14 @@ namespace Linqlite.Mapping
             //EntityPropertyInfo e = propertiesInfo.First(p => p.PropertyInfo.Name.Equals(prop));
 
             string[] props = propertyNamePath.Split('.');
-
             List<EntityPropertyInfo> propertiesInfo = Columns;
-            var e = Columns.First(c => c.PropertyInfo.Name == propertyNamePath);
+          
+            var e = Columns.First(c => c.PropertyInfo.Name == props[0]);
+
+            if (props.Length > 1)
+            {
+                return EntityMap.Get(e.PropertyType).Column(string.Join('.', string.Join('.', props.TakeLast(props.Length - 1))));
+            }
             return e.ColumnName;
             //int prof = 0;
             //foreach(string prop in props)

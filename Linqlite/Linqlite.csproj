@@ -25,4 +25,10 @@
     <PackageReference Include="SQLitePCLRaw.provider.sqlite3" Version="3.0.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="sqlite3.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

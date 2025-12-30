@@ -1,6 +1,7 @@
 ﻿using Linqlite.Attributes;
 using Linqlite.Mapping;
 using Linqlite.Sqlite;
+using OneOf.Types;
 using SQLitePCL;
 using System;
 using System.Collections;
@@ -10,6 +11,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml.Linq;
+using ZSpitz.Util;
 
 namespace Linqlite.Linq
 {
@@ -21,6 +23,9 @@ namespace Linqlite.Linq
         private Dictionary<Type, string> _aliases = new();
         private Dictionary<Type, string> _tables= new();
         private Dictionary<Type, EntityMap> _entityMaps = new();
+        private int? _take;
+        private int? _skip;
+        private readonly List<string> _orderBy = new();
 
         private int _aliasCounter = 0;
 
@@ -30,12 +35,13 @@ namespace Linqlite.Linq
             ["Select"] = HandleSelect,
             ["OrderBy"] = HandleOrderBy,
             ["OrderByDescending"] = HandleOrderByDescending,
+            ["ThenBy"] = HandleThenBy,
+            ["ThenByDescending"] = HandleThenByDescending,
             ["Take"] = HandleTake,
             ["Skip"] = HandleSkip,
             ["Contains"] = HandleContains,
             ["Join"] = HandleJoin
         };
-
 
         private static readonly Dictionary<ExpressionType, string> _binaryOperators = new()
         {
@@ -57,6 +63,17 @@ namespace Linqlite.Linq
             var visitor = new SqlExpressionVisitor();
             visitor.Visit(expression);
             visitor.EnsureSelect();
+            if(visitor._take.HasValue)
+            {
+                visitor._sb.Append($" LIMIT {visitor._take}");
+            }
+            if (visitor._skip.HasValue)
+            {
+                if(!visitor._take.HasValue)
+                    visitor._sb.Append($" LIMIT -1");
+
+                visitor._sb.Append($" OFFSET {visitor._skip}");
+            }
             return visitor._sb.ToString();
         }
 
@@ -88,23 +105,6 @@ namespace Linqlite.Linq
             
         }
         
-        /*
-        private static void HandleWhere(MethodCallExpression node, SqlExpressionVisitor v)
-        {
-            var lambda = (LambdaExpression)StripQuotes(node.Arguments[1]);
-
-            v._sb.Append(" WHERE ");
-
-            // Remplacer le paramètre par l’alias correct
-            var outerEntityType = GetOuterEntityType(lambda.Body);
-            var alias = v.GetAlias(outerEntityType);
-
-            var expr = new AliasReplacer(lambda.Parameters[0], alias)
-                .Visit(lambda.Body);
-
-            v.Visit(expr);
-        }
-        */
         private static void HandleContains(MethodCallExpression node, SqlExpressionVisitor v)
         {
             if (node.Object != null && node.Object.Type == typeof(string))
@@ -168,28 +168,150 @@ namespace Linqlite.Linq
 
         private static void HandleSelect(MethodCallExpression node, SqlExpressionVisitor v)
         {
-            // TODO
-            //v.EnsureFrom(elementType);
+            // 2. Récupérer le lambda p => ...
+            var lambda = (LambdaExpression)StripQuotes(node.Arguments[1]);
+
+            // 3. Construire la projection
+            v._sb.Append(" SELECT ");
+            v._selectGenerated = true;
+
+            v.HandleProjection(lambda.Body);
+
+            // 1. Récupérer la source (ex: photos)
+            v.Visit(node.Arguments[0]);
         }
 
-        private static void HandleOrderBy(MethodCallExpression node, SqlExpressionVisitor v)
+        private void HandleProjection(Expression body)
         {
-            // TODO
+            switch (body)
+            {
+                case MemberExpression member:
+                    HandleMemberProjection(member);
+                    break;
+
+                case NewExpression nex:
+                    HandleNewProjection(nex);
+                    break;
+
+                default:
+                    throw new NotSupportedException($"Unsupported select expression: {body.NodeType}");
+            }
+        }
+
+        private void HandleMemberProjection(MemberExpression member)
+        {
+            var type = member.Expression.Type;
+            var map = EntityMap.Get(type);
+
+            if (map == null)
+                throw new InvalidOperationException($"Type {type.Name} is not mapped.");
+
+            var column = GetColumnName(type, member);
+            var table = map.TableName;
+
+            _sb.Append($"{table}.{column}");
+        }
+
+
+        
+        Dictionary<string, ProjectionMap> _projectionMap = new();
+        
+        private void HandleNewProjection(NewExpression nex)
+        {
+            var parts = new List<string>();
+
+            //foreach (var arg in nex.Arguments)
+            for(int i = 0; i< nex.Arguments.Count; i++)
+            {
+                var arg = nex.Arguments[i];
+                if (arg is MemberExpression member)
+                {
+                    var type = member.Expression.Type;
+
+                    var projectedName = nex.Members[i].Name;
+                    var fullPath = GetExpressionPath(member); 
+                    var rootType = member.Expression.Type; 
+                    var propertyName = member.Member.Name; 
+                    _projectionMap[projectedName] = new ProjectionMap { 
+                            ProjectedName = projectedName, 
+                            FullPath = fullPath, 
+                            RootType = rootType, 
+                        PropertyName = propertyName 
+                    };
+
+                    var column = GetColumnName(type, member);
+                    var alias = GetAlias(type);
+                    parts.Add($"{alias}.{column}");
+                }
+                else
+                {
+                    throw new NotSupportedException("Unsupported projection element");
+                }
+            }
+
+            _sb.Append(string.Join(", ", parts));
+        }
+
+
+        public static string GetExpressionPath(Expression expr)
+        {
+            expr = StripConvert(expr);
+
+            var parts = new List<string>();
+
+            while (expr is MemberExpression m)
+            {
+                parts.Add(m.Member.Name);
+                expr = m.Expression;
+            }
+
+            parts.Reverse();
+            return string.Join(".", parts);
+        }
+
+
+
+        private static void HandleOrderBy(MethodCallExpression expression, SqlExpressionVisitor v)
+        {
+            v.Visit(expression.Arguments[0]);
+            var lambda = (LambdaExpression)StripQuotes(expression.Arguments[1]);
+            v._sb.Append(" ORDER BY ");
+            v.Visit(lambda.Body);
+        }
+
+        private static void HandleThenByDescending(MethodCallExpression expression, SqlExpressionVisitor v)
+        {
+            v.Visit(expression.Arguments[0]);
+            var lambda = (LambdaExpression)StripQuotes(expression.Arguments[1]);
+            v._sb.Append(", ");
+            v.Visit(lambda.Body);
+            v._sb.Append(" DESC");
+        }
+
+        private static void HandleThenBy(MethodCallExpression expression, SqlExpressionVisitor v)
+        {
+            v.Visit(expression.Arguments[0]);
+            var lambda = (LambdaExpression)StripQuotes(expression.Arguments[1]);
+            v._sb.Append(", ");
+            v.Visit(lambda.Body);
         }
 
         private static void HandleOrderByDescending(MethodCallExpression node, SqlExpressionVisitor v)
         {
-            // TODO
+            HandleOrderBy(node, v);
+            v._sb.Append(" DESC");
         }
 
         private static void HandleTake(MethodCallExpression node, SqlExpressionVisitor v)
         {
-            // TODO
+            v._take = (int)((ConstantExpression)node.Arguments[1]).Value;
+            v.Visit(node.Arguments[0]);
         }
 
         private static void HandleSkip(MethodCallExpression node, SqlExpressionVisitor v)
         {
-            // TODO
+            v._skip = (int)((ConstantExpression)node.Arguments[1]).Value;
+            v.Visit(node.Arguments[0]);
         }
 
 
@@ -204,10 +326,10 @@ namespace Linqlite.Linq
 
             // 2. Déterminer le type réel de la table "outer"
             //    Ce n'est PAS le type du paramètre (q), mais le type du premier membre accédé (q.p)
-            var outerEntityType = v.GetEntityType(outerKeyLambda.Body);
+            var outerEntityType = v.GetEntityType(StripConvert(outerKeyLambda.Body));
 
             // 3. Déterminer le type de la table "inner"
-            var innerEntityType = v.GetEntityType(innerKeyLambda.Body); //node.Arguments[1].Type.GetGenericArguments()[0];
+            var innerEntityType = v.GetEntityType(StripConvert(innerKeyLambda.Body)); //node.Arguments[1].Type.GetGenericArguments()[0];
 
             v.EnsureFrom(outerEntityType);
 
@@ -221,7 +343,7 @@ namespace Linqlite.Linq
 
             // 6. Générer la clé outer
             var outerExpr = new AliasReplacer(outerKeyLambda.Parameters[0], outerAlias)
-                .Visit(outerKeyLambda.Body);
+                .Visit(StripConvert(outerKeyLambda.Body));
 
             v.Visit(outerExpr);
 
@@ -229,7 +351,7 @@ namespace Linqlite.Linq
 
             // 7. Générer la clé inner
             var innerExpr = new AliasReplacer(innerKeyLambda.Parameters[0], innerAlias)
-                .Visit(innerKeyLambda.Body);
+                .Visit(StripConvert(innerKeyLambda.Body));
 
             v.Visit(innerExpr);
         }
@@ -257,26 +379,33 @@ namespace Linqlite.Linq
 
         protected override Expression VisitMember(MemberExpression node)
         {
-            // Si l’expression est déjà un alias SQL, on ne descend pas dedans
-            /*    if (node.Expression is ConstantExpression c &&
-                    c.Value is string s &&
-                    s.Contains("."))
-                {
-                    _sb.Append(s);
-                    return node;
-                }
-            */
-            // Sinon, comportement normal
-            //var lambda = (LambdaExpression)StripQuotes(node);
-            var type = GetEntityType(node);
-            var alias = GetAlias(type);
-            //var column = GetColumnName(type, node.Member.Name);
-            var column = GetColumnName(type, node);
+            string column = "";
+            Type type;
+            node = (MemberExpression)StripConvert(node);
+            var localPath = GetExpressionPath(node);
+            if (_projectionMap.TryGetValue(localPath, out var projMap))
+            {
+                type = projMap.RootType;
+                column = GetColumnName(type, projMap.PropertyName);
+            }
+            else
+            {
+
+                type = GetEntityType(node);
+                column = GetColumnName(type, node);
+            }
+            var alias = GetAlias(type);           
             _sb.Append($"{alias}.{column}");
             return node;
+
         }
 
-       
+
+        protected override Expression VisitParameter(ParameterExpression expression)
+        {
+            return base.VisitParameter(expression);
+        }
+
 
         protected override Expression VisitConstant(ConstantExpression node)
         {
@@ -355,7 +484,7 @@ namespace Linqlite.Linq
 
             var alias = GetAlias(tableType);
             var tablename = GetTableName(tableType);
-            _sb.Append($"FROM {tablename} {alias} ");
+            _sb.Append($" FROM {tablename} {alias} ");
             _fromGenerated = true;
         }
 
@@ -390,7 +519,7 @@ namespace Linqlite.Linq
 
         private bool IsTable(Type type)
         {
-            if(EntityMap.Get(type) == null) return false;
+            if(EntityMap.Get(type) == null || !EntityMap.Get(type).IsFromTable) return false;
             return true;
         }
 
@@ -400,17 +529,25 @@ namespace Linqlite.Linq
         }
 
 
-        private object GetColumnName(Type type, MemberExpression expression)
+        private string GetColumnName(Type type, MemberExpression expression)
         {
             // récupération du path 
             string path = "";
             Expression exp = expression;
             while (exp is MemberExpression m)
-            { // string.IsNullOrEmpty(GetTableName(m.Type)))
+            {
                 path = m.Member.Name + (string.IsNullOrEmpty(path) ? "" : ".") + path;
+                if (IsAnonymousType(m.Expression.Type) || IsTable(m.Expression.Type))
+                    break;
                 exp = m.Expression;
             }
             return EntityMap.Get(type).Column(path);
+        }
+
+        private string GetColumnName(Type type, string propertyName)
+        {
+            // récupération du path 
+            return EntityMap.Get(type).Column(propertyName);
         }
 
         private static bool IsAnonymousType(Type t)
@@ -420,12 +557,15 @@ namespace Linqlite.Linq
                    && t.IsGenericType;
         }
 
-
-     /*   private static string GetTableName(Type t)
+        private static Expression StripConvert(Expression expr)
         {
-            return t.Name;
-        }*/
-
+            while (expr.NodeType == ExpressionType.Convert ||
+                   expr.NodeType == ExpressionType.ConvertChecked)
+            {
+                expr = ((UnaryExpression)expr).Operand;
+            }
+            return expr;
+        }
 
 
         private void v(Expression e) => Visit(e);

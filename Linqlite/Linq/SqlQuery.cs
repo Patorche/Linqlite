@@ -1,27 +1,49 @@
-﻿using System;
+﻿using Linqlite.Hydration;
+using Linqlite.Sqlite;
+using Microsoft.Data.Sqlite;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace Linqlite.Linq
 {
-    public static class SqlQuery
+    public static class SqlQuery<T> where T : SqliteObservableEntity, new()
     {
-        public static TResult Execute<TResult>(string sql)
-        {
-            Console.WriteLine("SQL: " + sql);
+        public static Func<SqliteDataReader, T> Hydrator { get; private set; }
 
-            if (typeof(TResult).IsGenericType && typeof(TResult).GetGenericTypeDefinition() == typeof(IEnumerable<>))
+        static SqlQuery()
+        {
+            if (!typeof(T).IsAbstract)
             {
-                var elementType = typeof(TResult).GetGenericArguments()[0]; 
-                // Enumerable.Empty<T>()
-                var empty = typeof(Enumerable) .GetMethod("Empty") .MakeGenericMethod(elementType) .Invoke(null, null); 
-                return (TResult)empty!; 
-            } 
-            return default!;
+                //Hydrator = HydratorBuilder.CompileHydrator<T>(); 
+            }
+
         }
 
-        public static void Insert(Type entityType, Dictionary<string, object?> values)
+        public static IEnumerable<T> Execute(string sql, SqliteConnection? sqliteConnection)
         {
+            CheckConnection(sqliteConnection);
+            
+
+            Console.WriteLine("SQL: " + sql);
+
+            using var command = sqliteConnection.CreateCommand(); 
+            command.CommandText = sql; 
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) 
+            {
+                //yield return Hydrate<T>(reader); 
+                //yield return HydratorBuilder.CompileHydrator<TResult>();
+                yield return HydratorBuilder.GetEntity<T>(reader); //Hydrator. Invoke(reader);
+            }
+
+        }
+
+
+        public static void Insert(Type entityType, Dictionary<string, object?> values, SqliteConnection sqliteConnection)
+        {
+            CheckConnection(sqliteConnection);
+
             var tableName = entityType.Name.ToLower();
 
             var columns = string.Join(", ", values.Keys);
@@ -35,8 +57,19 @@ namespace Linqlite.Linq
             foreach (var kv in values)
                 Console.WriteLine($"  {kv.Key} = {kv.Value}");
 
-            // Plus tard : exécuter la commande SQLite
+            using var command = sqliteConnection.CreateCommand();
+            command.CommandText = sql;
+            command.ExecuteNonQuery();
         }
+
+        private static void CheckConnection(SqliteConnection? sqliteConnection)
+        {
+            if (sqliteConnection == null)
+            {
+                throw new Exception("Impossible d'exécuter une requête, aucune connexion n'est définié.");
+            }
+        }
+
 
     }
 

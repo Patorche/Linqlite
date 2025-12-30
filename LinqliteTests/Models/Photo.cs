@@ -16,7 +16,7 @@ namespace Linqlite.Models
         private string? _author = null;
 
         [ColumnAttribute(ColumnName = "id", IsKey = true)]
-        public long? Id { get; set; }
+        public long Id { get; set; }
         [ColumnAttribute(ColumnName = "filename", OnConflict = true)]
         public string Filename { get; set; } = string.Empty;
         [ColumnAttribute(ColumnName = "takendate")]

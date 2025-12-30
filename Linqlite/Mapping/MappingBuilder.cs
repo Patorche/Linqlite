@@ -16,14 +16,14 @@ namespace Linqlite.Mapping
                 if (colAttr != null)
                 {
                     list.Add(new EntityPropertyInfo
-                    {                        
+                    {
                         ColumnName = colAttr.ColumnName,
-                        PropertyPath = new[] { prop }
+                        PropertyInfo = prop
                     });
                 }
 
                 // 2. Propriété complexe : on cherche des colonnes dans ses sous-propriétés
-                if (IsComplexType(prop.PropertyType))
+                /*if (IsComplexType(prop.PropertyType))
                 {
                     foreach (var sub in prop.PropertyType.GetProperties())
                     {
@@ -37,7 +37,7 @@ namespace Linqlite.Mapping
                             });
                         }
                     }
-                }
+                }*/
             }
 
             return list;

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Linqlite.Mapping;
+using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -40,8 +41,9 @@ namespace Linqlite.Linq
                 // chain.Members = [p, Focal]
                 // Le dernier membre est la colonne réelle
                 var last = chain.Members.Last();
+                var lastName = EntityMap.Get(node.Expression.Type).Column(last.Name);
 
-                var sql = $"{_alias}.{last.Name.ToLower()}";
+                var sql = $"{_alias}.{lastName.ToLower()}";
                 return Expression.Constant(sql);
             }
 

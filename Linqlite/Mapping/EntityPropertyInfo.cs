@@ -8,9 +8,10 @@ namespace Linqlite.Mapping
     public class EntityPropertyInfo
     {
         public string ColumnName { get; set; } = "";
-        public PropertyInfo[] PropertyPath { get; set; } = Array.Empty<PropertyInfo>();
+        //public PropertyInfo[] PropertyPath { get; set; } = Array.Empty<PropertyInfo>();
+        public PropertyInfo PropertyInfo { get; set; } 
 
-        public Type PropertyType => PropertyPath.Last().PropertyType;
+        public Type PropertyType => PropertyInfo.PropertyType;
     }
 
 }

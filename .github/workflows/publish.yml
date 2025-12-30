@@ -21,7 +21,7 @@ jobs:
       run: dotnet restore ./Linqlite/Linqlite.csproj
 
     - name: Build
-      run: dotnet build ./Linqlite/Linqlite.csproj --configuration Release
+      run: dotnet build ./Linqlite/Linqlite.csproj --configuration Release --skip-duplicate
 
     - name: Pack
       run: dotnet pack ./Linqlite/Linqlite.csproj --configuration Release --output ./nupkg

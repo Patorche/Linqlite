@@ -30,7 +30,7 @@ namespace Linqlite.Linq
         private Dictionary<string, ProjectionMap> _projectionMap = new();
 
         private int _aliasCounter = 0;
-
+        private bool _projectStar = false;
         private static readonly Dictionary<string, Action<MethodCallExpression, SqlExpressionVisitor>> _handlers = new()
         {
             ["Where"] = HandleWhere,
@@ -177,6 +177,7 @@ namespace Linqlite.Linq
 
             // 3. Construire la projection
             v._sb.Append(" SELECT ");
+            
             v._selectGenerated = true;
 
             v.HandleProjection(lambda.Body);
@@ -205,6 +206,23 @@ namespace Linqlite.Linq
         private void HandleMemberProjection(MemberExpression member)
         {
             var type = member.Expression.Type;
+            /*if (IsAnonymousType(type))
+            {
+                _projectStar = true;
+                Visit(member.Expression);
+                return;
+            }*/
+
+            var mappedType = EntityMap.Get(member.Type);
+            if (mappedType != null)
+            {
+                var columns = mappedType.Columns; // ou GetColumns(member.Type)
+
+                var alias = GetAlias(member.Type);
+
+                _sb.Append(string.Join(", ", columns.Select(c => $"{alias}.{c.ColumnName}")));
+                return;
+            }
             var map = EntityMap.Get(type);
 
             if (map == null)
@@ -214,6 +232,7 @@ namespace Linqlite.Linq
             var table = map.TableName;
 
             _sb.Append($"{table}.{column}");
+
         }
       
         private void HandleNewProjection(NewExpression nex)

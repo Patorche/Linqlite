@@ -16,7 +16,7 @@ namespace Linqlite.Models
         [ColumnAttribute(ColumnName = "photo_id", JoinedTableName = "PHOTO")]
         public long? PhotoId { get; set; }
         [ColumnAttribute(ColumnName = "lib_id", JoinedTableName = "LIBRARY")]
-        public string CatalogueId { get; set; }
+        public long CatalogueId { get; set; }
         [ColumnAttribute(ColumnName = "deleted")]
         public bool IsDeleted 
         { 

@@ -1,0 +1,145 @@
+﻿using Linqlite.Linq;
+using Linqlite.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace LinqliteTests
+{
+    public class ConnectionTest : TestBase
+    {
+        static string connectionString = "E:\\Dev\\Photolab.db\\photolab.db";
+        [Fact]
+        public void ConnectionTest1()
+        {
+            var provider = new QueryProvider(connectionString);
+            var photos = new QueryableTable<Photo>(provider);
+
+            var query = photos.Where(p => p.Id >0).ToList();
+
+            foreach(var e  in query)
+            {
+                Console.WriteLine(e);
+            }
+
+        }
+
+        [Fact]
+        public void TestComplexe()
+        {
+            var provider = new QueryProvider(connectionString);
+            var photos = new QueryableTable<Photo>(provider);
+            var photoCatalogue = new QueryableTable<PhotoCatalogue>(provider);
+
+            //var result = photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == catalogue.Id && !x.c.IsDeleted).OrderBy(x => x.p.TakenDate).Select(x => x.p).ToList();
+            string res = SqlFor(photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == 1 && !x.c.IsDeleted).OrderBy(x => x.p.TakenDate).Select(x => x.p));
+            Assert.Equal("SELECT t0.id, t0.filename, t0.takendate, t0.folder, t0.width, t0.height, t0.type, t0.author, t0.camera, t0.make, t0.latitude, t0.longitude, t0.city, t0.country, t0.iso, t0.aperture, t0.shutterspeed, t0.focal, t0.rate, t0.thumbwidth, t0.thumbheight, t0.orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON t0.id = t1.photo_id WHERE ((t1.lib_id = 1) AND t1.deleted) ORDER BY t0.takendate",
+                res);
+            int i = 0;
+        }
+
+
+        [Fact]
+        public void TestDelete()
+        {
+            var provider = new QueryProvider(connectionString);
+            var photos = new QueryableTable<Photo>(provider);
+
+            Photo photo = new Photo()
+            {
+                Id = 1,
+                Author = "Patorche",
+                CameraName = "K100",
+                Make = "Pentax",
+                Filename = "IMG001.DNG",
+                Focal = "100",
+                Folder = @"c:\Images",
+                Height = 100,
+                Width = 100,
+                IsNew = true,
+                Orientation = 3,
+                Rate = 2,
+                TakenDate = new DateTime(2025, 12, 31),
+                ThumbHeight = 100,
+                ThumbWidth = 100,
+                Localisation = new GpsLocalisation() { City = "Paris", Country = "France", Latitude = 44.0, Longitude = 44.0},
+                CameraSetting = new CameraSetting() { Aperture = 1, Focal = 100, Iso = 1500, ShutterSpeed = 0.001},
+                Type = "PNG"
+            };
+
+            photos.Delete(photo);
+            //var result = photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == catalogue.Id && !x.c.IsDeleted).OrderBy(x => x.p.TakenDate).Select(x => x.p).ToList();
+            //string res = SqlFor(photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == 1 && !x.c.IsDeleted).OrderBy(x => x.p.TakenDate).Select(x => x.p));
+            //Assert.Equal("SELECT t0.id, t0.filename, t0.takendate, t0.folder, t0.width, t0.height, t0.type, t0.author, t0.camera, t0.make, t0.latitude, t0.longitude, t0.city, t0.country, t0.iso, t0.aperture, t0.shutterspeed, t0.focal, t0.rate, t0.thumbwidth, t0.thumbheight, t0.orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON t0.id = t1.photo_id WHERE ((t1.lib_id = 1) AND t1.deleted) ORDER BY t0.takendate",
+                //res);
+            int i = 0;
+        }
+
+        [Fact]
+        public void TestInsert()
+        {
+            var provider = new QueryProvider(connectionString);
+            var photos = new QueryableTable<Photo>(provider);
+
+            Photo photo = new Photo()
+            {
+                Author = "Patorche",
+                CameraName = "K100",
+                Make = "Pentax",
+                Filename = "IMG001.DNG",
+                Focal = "100",
+                Folder = @"c:\Images",
+                Height = 100,
+                Width = 100,
+                IsNew = true,
+                Orientation = 3,
+                Rate = 2,
+                TakenDate = new DateTime(2025, 12, 31),
+                ThumbHeight = 100,
+                ThumbWidth = 100,
+                Localisation = new GpsLocalisation() { City = "Paris", Country = "France", Latitude = 44.0, Longitude = 44.0 },
+                CameraSetting = new CameraSetting() { Aperture = 1, Focal = 100, Iso = 1500, ShutterSpeed = 0.001 },
+                Type = "PNG"
+            };
+
+            long res = photos.Insert(photo);
+
+            int i = 0;
+        }
+
+        [Fact]
+        public void TestUpdate()
+        {
+            var provider = new QueryProvider(connectionString);
+            var photos = new QueryableTable<Photo>(provider);
+
+            Photo photo = new Photo()
+            {
+                Author = "Patorche",
+                CameraName = "K100",
+                Make = "Pentax",
+                Filename = "IMG001.DNG",
+                Focal = "100",
+                Folder = @"c:\Images",
+                Height = 100,
+                Width = 100,
+                IsNew = true,
+                Orientation = 3,
+                Rate = 2,
+                TakenDate = new DateTime(2025, 12, 31),
+                ThumbHeight = 100,
+                ThumbWidth = 100,
+                Localisation = new GpsLocalisation() { City = "Paris", Country = "France", Latitude = 44.0, Longitude = 44.0 },
+                CameraSetting = new CameraSetting() { Aperture = 1, Focal = 100, Iso = 1500, ShutterSpeed = 0.001 },
+                Type = "PNG"
+            };
+
+            photos.Update(photo, nameof(Photo.Localisation));
+
+            int i = 0;
+        }
+
+    }
+
+
+}

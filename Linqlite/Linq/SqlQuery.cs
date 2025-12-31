@@ -1,9 +1,16 @@
 ﻿using Linqlite.Hydration;
+using Linqlite.Mapping;
 using Linqlite.Sqlite;
 using Microsoft.Data.Sqlite;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Data.Common;
+using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
+using System.Security.Principal;
 using System.Text;
+using System.Transactions;
 
 namespace Linqlite.Linq
 {
@@ -20,47 +27,156 @@ namespace Linqlite.Linq
 
         }
 
-        public static IEnumerable<T> Execute(string sql, SqliteConnection? sqliteConnection)
+        public static IEnumerable<T> Execute(string sql, QueryProvider provider, TrackingMode trackingMode)
         {
-            CheckConnection(sqliteConnection);
+            CheckConnection(provider.Connection);
             
 
             Console.WriteLine("SQL: " + sql);
 
-            using var command = sqliteConnection.CreateCommand(); 
+            using var command = provider.Connection.CreateCommand(); 
             command.CommandText = sql; 
             using var reader = command.ExecuteReader();
             while (reader.Read()) 
             {
                 //yield return Hydrate<T>(reader); 
                 //yield return HydratorBuilder.CompileHydrator<TResult>();
+                T entity = HydratorBuilder.GetEntity<T>(reader);
+                provider.Attach(entity, trackingMode);
                 yield return HydratorBuilder.GetEntity<T>(reader); //Hydrator. Invoke(reader);
             }
 
         }
 
 
-        public static void Insert(Type entityType, Dictionary<string, object?> values, SqliteConnection sqliteConnection)
+        public static long Insert(T entity, QueryProvider provider)
         {
-            CheckConnection(sqliteConnection);
+            CheckConnection(provider.Connection);
 
-            var tableName = entityType.Name.ToLower();
+            var tableName = EntityMap.Get(typeof(T)).TableName;
+            var sql = $"INSERT INTO {tableName}";
+            string[] head = GetColumnsInsertQuery(entity);
+            sql += "(" + head[0] + ")";
+            sql += " VALUES(" + head[1] + ")";
+            if (!string.IsNullOrEmpty(head[2]))
+            {
+                sql += " ON  CONFLICT (" + head[2] + ") DO NOTHING";
+            }
+            sql += ";";
 
-            var columns = string.Join(", ", values.Keys);
-            var parameters = string.Join(", ", values.Keys.Select(k => "@" + k));
-
-            var sql = $"INSERT INTO {tableName} ({columns}) VALUES ({parameters})";
+            using var cmd = provider.Connection.CreateCommand();
+            PopulateInsertCommand(cmd, entity);
 
             Console.WriteLine("SQL: " + sql);
 
-            // TEMPORAIRE : afficher les valeurs
-            foreach (var kv in values)
-                Console.WriteLine($"  {kv.Key} = {kv.Value}");
+            cmd.CommandText = sql;
+            int res = cmd.ExecuteNonQuery();
+            
+            if (res == 1)
+            {
+                var idQuery = $"SELECT last_insert_rowid();";
+                var q = new SqliteCommand(idQuery, provider.Connection);
+                return (long)q.ExecuteScalar()!;
+            }
 
-            using var command = sqliteConnection.CreateCommand();
-            command.CommandText = sql;
-            command.ExecuteNonQuery();
+            return -1; // L'objet existe, on revoit -1. A l'appelant d'aller erécupérer l'objet si besoin
         }
+
+        public static void Delete(T entity, QueryProvider provider)
+        {
+            CheckConnection(provider.Connection);
+
+            var table = EntityMap.Get(typeof(T)).TableName;
+            var keys = EntityMap.Get(typeof(T)).Columns.Where(c => c.IsKey);
+
+
+            using var cmd = provider.Connection.CreateCommand();
+            var query = $"DELETE FROM {table} WHERE ";
+            var where = string.Empty;
+
+            foreach(var k in keys)
+            {
+                if (!string.IsNullOrEmpty(where))
+                    where += " AND ";
+                where += $"{k.ColumnName} = @{k.ColumnName}"; 
+                cmd.Parameters.AddWithValue($"@{k.ColumnName}", GetSqliteValue(k.PropertyInfo, entity));
+            }
+            cmd.CommandText = query + where;
+            cmd.ExecuteNonQuery();
+        }
+
+        internal static void Update(T entity, string property, QueryProvider provider)
+        {
+            string tableName = EntityMap.Get(typeof(T)).TableName;
+            using var cmd = provider.Connection.CreateCommand(); 
+            cmd.CommandText = $"UPDATE {tableName} SET ";
+
+            var columns = EntityMap.Get(typeof(T)).Columns;
+            var column = columns.Single(c => c.PropertyInfo.Name == property);
+            if(!string.IsNullOrEmpty(column.ColumnName))
+            {
+                cmd.CommandText += $" {column} = @{column}";
+                cmd.Parameters.AddWithValue($"@{column}", GetSqliteValue(column.PropertyInfo, entity));
+            }
+            else
+            {
+                object v = column.PropertyInfo.GetValue(entity);
+                string updtString = GetUpdatesFromEntity(v, cmd.Parameters);
+                cmd.CommandText += updtString;
+            }
+            // Where
+            cmd.CommandText += " WHERE ";
+
+            var keys = columns.Where(c => c.IsKey);
+            string where = "";
+            foreach (var key in keys) 
+            {
+                if (!string.IsNullOrEmpty(where))
+                    where += " AND ";
+                where += $"{key.ColumnName} = @{key.ColumnName}";
+                cmd.Parameters.AddWithValue($"@{key.ColumnName}", GetSqliteValue(key.PropertyInfo, entity));
+            }
+
+            cmd.CommandText += where;
+
+            cmd.ExecuteNonQuery();
+        }
+
+        private static string GetUpdatesFromEntity(object o, SqliteParameterCollection parameters)
+        {
+            if (!(o is SqliteObservableEntity))
+                throw new Exception("o doit être de type SqliteObservableEntity");
+            // On parcours toutes les colonnes de o et on ajoutes au paramètres et on construite la chaine d'UPDATE xx = @xx AND yy = @ yy etc
+            var columns = EntityMap.Get(o.GetType()).Columns;
+
+            string updateString = "";
+            foreach(var col in columns)
+            {
+                if (!string.IsNullOrEmpty(col.ColumnName))
+                {
+                    if(!string.IsNullOrEmpty(updateString)) { updateString += ", "; }
+                    updateString += $" {col.ColumnName} = @{col.ColumnName}";
+                    parameters.AddWithValue($"@{col.ColumnName}", GetSqliteValue(col.PropertyInfo, o));
+                }
+                else
+                {
+                    object v = col.PropertyInfo.GetValue(o);
+                    string subString = GetUpdatesFromEntity(v, parameters);
+                    if (subString != null) 
+                    {
+                        if (!string.IsNullOrEmpty(updateString)) { updateString += ", "; }
+                        updateString += subString;
+                    }
+                }
+            }
+            return updateString;
+        }
+
+        public static void Update(T entity, QueryProvider provider)
+        {
+
+        }
+
 
         private static void CheckConnection(SqliteConnection? sqliteConnection)
         {
@@ -70,6 +186,87 @@ namespace Linqlite.Linq
             }
         }
 
+        private static string[] GetColumnsInsertQuery(object entity)
+        {
+            string columnsList = "";
+            string parametersList = "";
+            string onConflictList = "";
+            bool first = true;
+            bool firstConflict = true;
+
+            foreach (var column in EntityMap.Get(entity.GetType()).Columns)
+            {
+                if (column.IsKey) continue;
+                columnsList += !first ? "," : "";
+                parametersList += !first ? "," : "";
+                if (string.IsNullOrEmpty(column.ColumnName))
+                {
+                    // on doit aller récupérer les colonnes liées au type de l'objet
+                    string[] objParts = GetColumnsInsertQuery(column.PropertyInfo.GetValue(entity));
+                    columnsList += objParts[0];
+                    parametersList += objParts[1];
+                }
+                else
+                {
+                    columnsList += column.ColumnName;
+                    parametersList += "@" + column.ColumnName;
+
+                    if (column.IsOnconflict)
+                    {
+                        onConflictList += !firstConflict ? "," : "";
+                        onConflictList += column.ColumnName;
+                        firstConflict = false;
+                    }
+                }
+                first = false;
+            }
+
+            return [columnsList, parametersList, onConflictList];
+        }
+
+        private static void PopulateInsertCommand(SqliteCommand cmd, object item)
+        {
+            var columns = EntityMap.Get(item.GetType()).Columns;
+            foreach (var column in columns)
+            {
+                if (column.IsKey)
+                    continue;
+                if (string.IsNullOrEmpty(column.ColumnName))
+                {
+                    var instance = column.PropertyInfo.GetValue(item);
+                    if (instance != null)
+                    {
+                        //cmd.Parameters.AddWithValue("@" + column.Value.ColumnName, column.Value.PropertyInfo.GetValue(instance) ?? DBNull.Value);
+                        PopulateInsertCommand(cmd, instance);
+                    }
+                }
+                else
+                {
+                    cmd.Parameters.AddWithValue("@" + column.ColumnName, GetSqliteValue(column.PropertyInfo, item));
+                }
+            }
+        }
+
+        private static object GetSqliteValue(PropertyInfo property, object item)
+        {
+            Type type = property.PropertyType;
+            if (Nullable.GetUnderlyingType(type) != null)
+            {
+                type = Nullable.GetUnderlyingType(type);
+            }
+
+            switch (Type.GetTypeCode(type))
+            {
+                case TypeCode.DateTime:
+                    DateTime? date = (DateTime)property.GetValue(item);
+                    object strDate = date?.ToString("yyyy-MM-dd HH:mm:ss");
+                    return strDate ?? DBNull.Value;
+                default:
+                    return property.GetValue(item) ?? DBNull.Value;
+
+            }
+
+        }
 
     }
 

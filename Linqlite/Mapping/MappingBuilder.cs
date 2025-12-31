@@ -18,7 +18,9 @@ namespace Linqlite.Mapping
                     list.Add(new EntityPropertyInfo
                     {
                         ColumnName = colAttr.ColumnName,
-                        PropertyInfo = prop
+                        PropertyInfo = prop,
+                        IsKey = colAttr.IsKey,
+                        IsOnconflict = colAttr.OnConflict
                     });
                 }
 

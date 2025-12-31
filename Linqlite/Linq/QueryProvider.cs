@@ -12,9 +12,10 @@ namespace Linqlite.Linq
     public class QueryProvider : IQueryProvider, IDisposable
     {
         private static readonly HashSet<string> _terminalOperators = Enum.GetNames(typeof(TerminalOperator)).ToHashSet();
+        public TrackingMode DefaultTrackingMode { get; set; } = TrackingMode.AutoUpdate;
 
         private string _connectionString = "";
-        private SqliteConnection? _connection = null;
+        internal SqliteConnection? Connection = null;
 
         public string ConnectionString
         {
@@ -38,14 +39,14 @@ namespace Linqlite.Linq
         private void Connect()
         {
             SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_sqlite3());
-            _connection = new SqliteConnection(@$"Data Source={ConnectionString}");
-            _connection.Open();
+            Connection = new SqliteConnection(@$"Data Source={ConnectionString}");
+            Connection.Open();
             Optimize();
         }
 
         private void Optimize()
         {
-            using (var command = _connection?.CreateCommand())
+            using (var command = Connection?.CreateCommand())
             {
                 if (command == null) return;
                 command.CommandText = @"
@@ -91,40 +92,28 @@ namespace Linqlite.Linq
 
 
 
-        public void Insert<T>(T entity) where T : SqliteObservableEntity, new()
+        public long Insert<T>(T entity) where T : SqliteObservableEntity, new()
         {
-            // 1. Extraire les colonnes et valeurs
-            var map = EntityMap.Get(entity.GetType()).Columns;
-
-            // 2. Construire un dictionnaire { columnName → value }
-            var values = new Dictionary<string, object?>();
-
-            foreach (var col in map)
-            {
-                var value = ExtractValue(entity, col);
-                values[col.ColumnName] = value;
-            }
-
-            // 3. Déléguer à SqlQuery
-            SqlQuery<T>.Insert(typeof(T), values, _connection);
+            return SqlQuery<T>.Insert(entity, this);
         }
 
-        private static object? ExtractValue<T>(T entity, EntityPropertyInfo col)
+        public void Delete<T>(T entity) where T : SqliteObservableEntity, new()
         {
-            object? current = entity;
-
-            //foreach (var prop in col.PropertyPath)
-            current = col.PropertyInfo.GetValue(current);
-
-            return current;
+            SqlQuery<T>.Delete(entity, this);
         }
+
+        public void Update<T>(T entity, string property) where T : SqliteObservableEntity, new()
+        {
+            SqlQuery<T>.Update(entity, property, this);
+        }
+
 
         public async void Dispose()
         {
-            if (_connection != null)
+            if (Connection != null)
             {
-                await _connection.CloseAsync();
-                _connection.Dispose();
+                await Connection.CloseAsync();
+                Connection.Dispose();
             }
         }
 
@@ -143,7 +132,8 @@ namespace Linqlite.Linq
 
         private object? ExecuteSequence(Expression expression)
         {
-            var sql = Translate(expression);
+            TrackingMode? trackingMode;
+            var sql = Translate(expression, out trackingMode);
 
             var elementType = TypeSystem.GetElementType(expression.Type);
 
@@ -151,7 +141,7 @@ namespace Linqlite.Linq
                 .MakeGenericType(elementType)
                 .GetMethod(nameof(SqlQuery<SqliteObservableEntity>.Execute));
 
-            return method.Invoke(null, new object[] { sql, _connection });
+            return method.Invoke(null, new object[] { sql, this, trackingMode });
         }
 
         private object? ExecuteTerminal(MethodCallExpression mce)
@@ -188,19 +178,56 @@ namespace Linqlite.Linq
         }
 
 
-        private string Translate(Expression expression)
+        private string Translate(Expression expression, out TrackingMode? trackingMode)
         {
-            return SqlExpressionVisitor.Translate(expression);
+            SqlExpressionVisitor visitor = new SqlExpressionVisitor();
+            trackingMode = visitor.TrackingMode;
+            return visitor.Translate(expression);
         }
 
         public TResult? Execute<TResult>(Expression expression)
         {
             return (TResult)Execute(expression);
         }
+
+        public void Attach(SqliteObservableEntity entity, TrackingMode? mode = TrackingMode.AutoUpdate)
+        {
+            switch (mode)
+            {
+                case TrackingMode.None:
+                    // On ne tracke pas du tout
+                    break;
+
+                case TrackingMode.AutoUpdate:
+                    entity.PropertyChanged += (s, e) =>
+                    {
+                        Update(entity, e.PropertyName);
+                    };
+                    break;
+
+                case TrackingMode.Manual:
+                    // On tracke, mais on ne fait rien automatiquement
+                    // (tu peux garder une liste des entités modifiées)
+                    /*_trackedEntities.Add(entity);
+                    entity.PropertyChanged += (s, e) =>
+                    {
+                        MarkDirty(entity, e.PropertyName);
+                    };*/
+                    break;
+            }
+        }
+
     }
 
     enum TerminalOperator
     {
         First, FirstOrDefault, Single, SingleOrDefault, Any, Count
+    }
+
+    public enum TrackingMode 
+    { 
+        None, 
+        AutoUpdate, 
+        Manual 
     }
 }

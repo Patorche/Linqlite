@@ -15,6 +15,8 @@ namespace Linqlite.Tests
             var photocatalogue = new QueryableTable<PhotoCatalogue>(provider);
 
             var sql = SqlFor(photos.Join(photocatalogue, p => p.Id, pc => pc.PhotoId, (p, pc) => new { p, pc }).Where(q => q.pc.IsDeleted == false));
+
+            
      
 
             Assert.Equal(

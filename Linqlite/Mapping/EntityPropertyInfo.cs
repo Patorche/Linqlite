@@ -12,6 +12,8 @@ namespace Linqlite.Mapping
         public PropertyInfo PropertyInfo { get; set; } 
 
         public Type PropertyType => PropertyInfo.PropertyType;
+        public bool IsKey { get; set; }
+        public bool IsOnconflict { get; internal set; }
     }
 
 }

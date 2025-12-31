@@ -23,7 +23,7 @@ namespace Linqlite.Sqlite
 
         private void OnPropertyChangedForSqlite<TValue>(string propertyName, TValue value)
         {
-            /*
+          /*  
             if (IsNew)
                 return;
 
@@ -44,7 +44,7 @@ namespace Linqlite.Sqlite
             {
                 [col.ColumnName] = value
             };
-            */
+            
             
             /*var controllerType = typeof(SqliteAccessController<>).MakeGenericType(entityType);
             var instance = controllerType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static).GetValue(null);

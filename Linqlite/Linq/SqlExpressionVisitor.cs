@@ -28,6 +28,7 @@ namespace Linqlite.Linq
         private int? _skip;
         private readonly List<string> _orderBy = new();
         private Dictionary<string, ProjectionMap> _projectionMap = new();
+        private TrackingMode? _trackingMode;
 
         private int _aliasCounter = 0;
         private bool _projectStar = false;
@@ -59,30 +60,36 @@ namespace Linqlite.Linq
             [ExpressionType.OrElse] = " OR "
         };
 
+        public TrackingMode? TrackingMode => _trackingMode;
 
-
-        public static string Translate(Expression expression)
+        public string Translate(Expression expression)
         {
             System.Diagnostics.Debug.WriteLine(ExpressionVisualizer.Dump(expression));
-            var visitor = new SqlExpressionVisitor();
-            visitor.Visit(expression);
-            visitor.EnsureSelect();
-            if(visitor._take.HasValue)
+            //var visitor = new SqlExpressionVisitor();
+            Visit(expression);
+            EnsureSelect();
+            if(_take.HasValue)
             {
-                visitor._sb.Append($" LIMIT {visitor._take}");
+                _sb.Append($" LIMIT {_take}");
             }
-            if (visitor._skip.HasValue)
+            if (_skip.HasValue)
             {
-                if(!visitor._take.HasValue)
-                    visitor._sb.Append($" LIMIT -1");
+                if(!_take.HasValue)
+                    _sb.Append($" LIMIT -1");
 
-                visitor._sb.Append($" OFFSET {visitor._skip}");
+                _sb.Append($" OFFSET {_skip}");
             }
-            return visitor._sb.ToString();
+            return _sb.ToString();
         }
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
+            if (node.Method.Name == "WithTrackingMode")
+            {
+                _trackingMode = (TrackingMode)((ConstantExpression)node.Arguments[1]).Value;
+                return Visit(node.Arguments[0]); // on continue sans ce nœud 
+            }
+
             if (_handlers.TryGetValue(node.Method.Name, out var handler))
             {
                 handler(node, this);
@@ -219,8 +226,8 @@ namespace Linqlite.Linq
                 var columns = mappedType.Columns; // ou GetColumns(member.Type)
 
                 var alias = GetAlias(member.Type);
-
-                _sb.Append(string.Join(", ", columns.Select(c => $"{alias}.{c.ColumnName}")));
+                _sb.Append(mappedType.Projection(alias));
+                //_sb.Append(string.Join(", ", columns.Select(c => $"{alias}.{mappedType.ColumnName(c.)}")));
                 return;
             }
             var map = EntityMap.Get(type);

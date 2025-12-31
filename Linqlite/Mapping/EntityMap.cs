@@ -37,26 +37,6 @@ namespace Linqlite.Mapping
                 return EntityMap.Get(e.PropertyType).Column(string.Join('.', string.Join('.', props.TakeLast(props.Length - 1))));
             }
             return e.ColumnName;
-            //int prof = 0;
-            //foreach(string prop in props)
-            //{
-            //    // On regarde si la propriété est bien là.
-            //    //if (prof.Equals(props.Length-1))
-            //    {
-            //        EntityPropertyInfo e = propertiesInfo.First(p => p.PropertyInfo.Name.Equals(prop));
-            //        /*if (propertiesInfo.First(p => p.PropertyPath[prof].Name.Equals(prop)) != null)
-            //        {
-            //            return e.ColumnName;
-            //        }*/
-            //        return e.ColumnName;
-            //        throw new Exception($"Colonne introuvable pour {propertyNamePath}");
-            //    }
-                
-            //    propertiesInfo = propertiesInfo.Where(p => p.PropertyInfo.Name.Equals(prop)).ToList();
-            //    prof++;
-            //}
-
-            //return "";
         }
 
 
@@ -86,7 +66,23 @@ namespace Linqlite.Mapping
             return map;
         }
 
-        
+        internal string Projection(string alias)
+        {
+            List<string> cols = new List<string>();
+
+            foreach (var col in Columns) {
+                if (!string.IsNullOrEmpty(col.ColumnName))
+                {
+                    cols.Add($"{alias}.{col.ColumnName}");
+                }
+                else
+                {
+                    cols.AddRange(EntityMap.Get(col.PropertyType).Projection(alias));
+                }
+            }
+
+            return string.Join(", ", cols.ToArray());
+        }
     }
 
 }

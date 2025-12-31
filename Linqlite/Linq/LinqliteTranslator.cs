@@ -9,7 +9,8 @@ namespace Linqlite.Linq
     {
         public static string Translate<T>(IQueryable<T> query)
         {
-            return SqlExpressionVisitor.Translate(query.Expression);
+            SqlExpressionVisitor visitor = new SqlExpressionVisitor();
+            return visitor.Translate(query.Expression);
         }
     }
 

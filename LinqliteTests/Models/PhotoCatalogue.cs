@@ -8,16 +8,16 @@ using System.Threading.Tasks;
 
 namespace Linqlite.Models
 { 
-    [TableAttribute("PHOTO_LIB", isJoin:true)]
+    [Table("PHOTO_LIB", isJoin:true)]
     public class PhotoCatalogue : SqliteObservableEntity
     {
         private bool _isDeleted = false;
 
-        [ColumnAttribute(ColumnName = "photo_id", JoinedTableName = "PHOTO")]
+        [Column(ColumnName = "photo_id", JoinedTableName = "PHOTO")]
         public long? PhotoId { get; set; }
-        [ColumnAttribute(ColumnName = "lib_id", JoinedTableName = "LIBRARY")]
+        [Column(ColumnName = "lib_id", JoinedTableName = "LIBRARY")]
         public long CatalogueId { get; set; }
-        [ColumnAttribute(ColumnName = "deleted")]
+        [Column(ColumnName = "deleted")]
         public bool IsDeleted 
         { 
             get => _isDeleted;

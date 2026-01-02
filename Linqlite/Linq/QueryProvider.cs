@@ -133,7 +133,10 @@ namespace Linqlite.Linq
         private object? ExecuteSequence(Expression expression)
         {
             TrackingMode? trackingMode;
-            var sql = Translate(expression, out trackingMode);
+            //var sql = Translate(expression, out trackingMode);
+            SqlExpressionVisitor visitor = new SqlExpressionVisitor();
+            trackingMode = visitor.TrackingMode;
+            var sql = visitor.Translate(expression);
 
             var elementType = TypeSystem.GetElementType(expression.Type);
 
@@ -141,7 +144,7 @@ namespace Linqlite.Linq
                 .MakeGenericType(elementType)
                 .GetMethod(nameof(SqlQuery<SqliteObservableEntity>.Execute));
 
-            return method.Invoke(null, new object[] { sql, this, trackingMode });
+            return method.Invoke(null, new object[] { sql, this, trackingMode, visitor.SqliteParameters });
         }
 
         private object? ExecuteTerminal(MethodCallExpression mce)

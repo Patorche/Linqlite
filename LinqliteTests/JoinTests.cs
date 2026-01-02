@@ -20,7 +20,7 @@ namespace Linqlite.Tests
      
 
             Assert.Equal(
-                "SELECT * FROM PHOTO t0 JOIN PHOTO_LIB t1 ON t0.id = t1.photo_id WHERE (t1.deleted = False)",
+                "SELECT * FROM PHOTO t0 JOIN PHOTO_LIB t1 ON t0.id = t1.photo_id WHERE (t1.deleted = FALSE)",
                 sql);
         }
 

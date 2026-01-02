@@ -61,6 +61,7 @@ namespace Linqlite.Linq
         };
 
         public TrackingMode? TrackingMode => _trackingMode;
+        public Dictionary<string, object> SqliteParameters = new();
 
         public string Translate(Expression expression)
         {
@@ -384,6 +385,24 @@ namespace Linqlite.Linq
 
         protected override Expression VisitBinary(BinaryExpression node)
         {
+            //  Normalization des expressions booléennes .Ex : Property == false => !Property
+            if (node.NodeType == ExpressionType.Equal || node.NodeType == ExpressionType.NotEqual)
+            {
+                // Cas bool == true/false
+                if (node.Left.Type == typeof(bool) && node.Right is ConstantExpression ce)
+                {
+                    bool b = (bool)ce.Value;
+                    if (node.NodeType == ExpressionType.Equal)
+                    {
+                        return b ? Visit(node.Left) : Visit(Expression.Not(node.Left)); 
+                    }
+                    else // NotEqual
+                    {
+                        return b ? Visit(Expression.Not(node.Left)) : Visit(node.Left);                 
+                    }
+                }
+            }
+
             // Parenthèses pour éviter les ambiguïtés
             _sb.Append("(");
 
@@ -401,9 +420,41 @@ namespace Linqlite.Linq
             return node;
         }
 
+        protected override Expression VisitUnary(UnaryExpression node)
+        {
+            if (node.NodeType == ExpressionType.Not && node.Operand.Type == typeof(bool))
+            {
+                var member = (MemberExpression)node.Operand;
+                var type = GetEntityType(member);
+                var column = GetColumnName(type, member);
+                var alias = GetAlias(type);
+                _sb.Append($"({alias}.{column} = FALSE)"); 
+                return node;
+
+            }
+            return base.VisitUnary(node);
+        }
 
         protected override Expression VisitMember(MemberExpression node)
         {
+            bool isConstant = false;
+            object? value = null;
+            try
+            {
+                value = Evaluate(node);
+                isConstant = true;
+            }
+            catch (InvalidOperationException)
+            {}
+            if (isConstant)
+            {
+                //var value = Evaluate(node);
+                string v = $"@v{SqliteParameters.Count}";
+                SqliteParameters.Add($"{v}", value);
+                _sb.Append(v);
+                return Expression.Constant(value);
+            }
+
             string column = "";
             Type type;
             node = (MemberExpression)StripConvert(node);
@@ -419,11 +470,48 @@ namespace Linqlite.Linq
                 type = GetEntityType(node);
                 column = GetColumnName(type, node);
             }
-            var alias = GetAlias(type);           
-            _sb.Append($"{alias}.{column}");
-            return node;
-
+            var alias = GetAlias(type);
+            if (node.Type == typeof(bool))
+            {
+                _sb.Append($"({alias}.{column}");
+                _sb.Append(" = TRUE)");
+            }
+            else
+            {
+                _sb.Append($"{alias}.{column}");
+            }
+            return node;            
         }
+
+        private object Evaluate(Expression expr)
+        {
+            if (expr is ConstantExpression c)
+                return c.Value;
+
+            // compile une lambda pour évaluer la valeur
+            var lambda = Expression.Lambda(expr);
+            var compiled = lambda.Compile();
+            return compiled.DynamicInvoke();
+        }
+
+        private bool IsMappedColumn(MemberExpression node)
+        {
+            // 1. Le type doit être mappé
+            var map = EntityMap.Get(node.Expression.Type);
+            if (map == null)
+                return false;
+
+            // 2. La propriété doit être mappée
+            var mappedCol = map.Column(node.Member.Name);
+            if (string.IsNullOrEmpty(mappedCol))
+                return false;
+
+            // 3. L’expression doit venir d’un paramètre de la requête
+            //    (pas d’un closure, pas d’un constant)
+            return node.Expression.NodeType == ExpressionType.Parameter
+                || node.Expression.NodeType == ExpressionType.MemberAccess;
+        }
+
 
 
         protected override Expression VisitParameter(ParameterExpression expression)
@@ -566,7 +654,7 @@ namespace Linqlite.Linq
                     break;
                 exp = m.Expression;
             }
-            return EntityMap.Get(type).Column(path);
+            return EntityMap.Get(type)?.Column(path);
         }
 
         private string GetColumnName(Type type, string propertyName)

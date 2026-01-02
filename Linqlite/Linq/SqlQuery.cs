@@ -27,7 +27,7 @@ namespace Linqlite.Linq
 
         }
 
-        public static IEnumerable<T> Execute(string sql, QueryProvider provider, TrackingMode trackingMode)
+        public static IEnumerable<T> Execute(string sql, QueryProvider provider, TrackingMode trackingMode, Dictionary<string, object> parameters)
         {
             CheckConnection(provider.Connection);
             
@@ -35,7 +35,11 @@ namespace Linqlite.Linq
             Console.WriteLine("SQL: " + sql);
 
             using var command = provider.Connection.CreateCommand(); 
-            command.CommandText = sql; 
+            command.CommandText = sql;
+            foreach (var parameter in parameters)
+            { 
+                command.Parameters.AddWithValue(parameter.Key, parameter.Value); 
+            }
             using var reader = command.ExecuteReader();
             while (reader.Read()) 
             {

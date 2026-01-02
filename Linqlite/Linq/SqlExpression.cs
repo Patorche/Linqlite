@@ -8,10 +8,16 @@ namespace Linqlite.Linq
     class SqlExpression : Expression
     {
         public string Sql { get; }
+        public Expression Expression { get; }
 
         public SqlExpression(string sql)
         {
             Sql = sql;
+        }
+
+        public SqlExpression(Expression e)
+        {
+            Expression = e;
         }
 
         public override ExpressionType NodeType => ExpressionType.Extension;

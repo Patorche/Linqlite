@@ -10,7 +10,7 @@ namespace Linqlite.Linq
 {
     public class QueryableTable<T> : IQueryable<T>
     {
-        private readonly TrackingMode? _trackingModeOverride;
+        public TrackingMode TrackingModeOverride;
         public Expression Expression { get; }
         public Type ElementType => typeof(T);
         public IQueryProvider Provider { get; }
@@ -18,9 +18,9 @@ namespace Linqlite.Linq
         public QueryableTable(IQueryProvider provider, TrackingMode? trackingModeOverride = null)
         {
             Provider = provider;
-            _trackingModeOverride = trackingModeOverride ?? ((QueryProvider)Provider).DefaultTrackingMode;
+            TrackingModeOverride = trackingModeOverride ?? ((QueryProvider)Provider).DefaultTrackingMode;
             Expression = Expression.Constant(this);
-            Expression = ApplyTrackingMode(Expression, trackingModeOverride); // Expression.Constant(this);
+            Expression = ApplyTrackingMode(Expression); // Expression.Constant(this);
         }
 
         /*public QueryableTable(QueryProvider provider, TrackingMode? trackingModeOverride = null) 
@@ -38,22 +38,14 @@ namespace Linqlite.Linq
 
         internal void AttachEntity(T entity) 
         { 
-            if (entity is SqliteObservableEntity obj) 
-                ((QueryProvider)Provider).Attach(obj, _trackingModeOverride); 
+            if (entity is SqliteEntity obj) 
+                ((QueryProvider)Provider).Attach(obj, TrackingModeOverride); 
         }
 
-        internal Expression ApplyTrackingMode(Expression source, TrackingMode? mode)
+        internal Expression ApplyTrackingMode(Expression source)
         {
-            if (mode == null)
-                return source;
-
-            return Expression.Call(
-                typeof(TrackingExpressionExtensions),
-                nameof(TrackingExpressionExtensions.WithTrackingMode),
-                new[] { typeof(T) },
-                source,
-                Expression.Constant(mode)
-            );
+            var method = typeof(TrackingExpressionExtensions).GetMethod(nameof(TrackingExpressionExtensions.WithTrackingMode))!.MakeGenericMethod(typeof(T)); 
+            return Expression.Call(method, source, Expression.Constant(TrackingModeOverride, typeof(TrackingMode)));
         }
 
 
@@ -70,6 +62,6 @@ namespace Linqlite.Linq
     }
 
     public static class TrackingExpressionExtensions { 
-        public static IQueryable<T> WithTrackingMode<T>(this IQueryable<T> source, TrackingMode mode) 
+        public static IQueryable<T> WithTrackingMode<T>(this IQueryable<T> source, TrackingMode ex) 
             => throw new NotSupportedException("This method should never be executed directly."); }
 }

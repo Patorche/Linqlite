@@ -14,7 +14,7 @@ using System.Transactions;
 
 namespace Linqlite.Linq
 {
-    public static class SqlQuery<T> where T : SqliteObservableEntity, new()
+    public static class SqlQuery<T> where T : SqliteEntity, new()
     {
         public static Func<SqliteDataReader, T> Hydrator { get; private set; }
 
@@ -34,22 +34,29 @@ namespace Linqlite.Linq
 
             Console.WriteLine("SQL: " + sql);
 
-            using var command = provider.Connection.CreateCommand(); 
+            var command = provider.Connection.CreateCommand(); 
             command.CommandText = sql;
             foreach (var parameter in parameters)
             { 
                 command.Parameters.AddWithValue(parameter.Key, parameter.Value); 
             }
-            using var reader = command.ExecuteReader();
-            while (reader.Read()) 
+            var reader = command.ExecuteReader();
+            try
             {
-                //yield return Hydrate<T>(reader); 
-                //yield return HydratorBuilder.CompileHydrator<TResult>();
-                T entity = HydratorBuilder.GetEntity<T>(reader);
-                provider.Attach(entity, trackingMode);
-                yield return HydratorBuilder.GetEntity<T>(reader); //Hydrator. Invoke(reader);
+                while (reader.Read())
+                {
+                    //yield return Hydrate<T>(reader); 
+                    //yield return HydratorBuilder.CompileHydrator<TResult>();
+                    T entity = HydratorBuilder.GetEntity<T>(reader);
+                    provider.Attach(entity, trackingMode);
+                    yield return entity;
+                }
             }
-
+            finally 
+            { 
+                reader.Dispose(); 
+                command.Dispose(); 
+            }
         }
 
 
@@ -111,16 +118,17 @@ namespace Linqlite.Linq
 
         internal static void Update(T entity, string property, QueryProvider provider)
         {
-            string tableName = EntityMap.Get(typeof(T)).TableName;
+            var map = EntityMap.Get(entity.GetType());
+            string tableName = map.TableName;
             using var cmd = provider.Connection.CreateCommand(); 
             cmd.CommandText = $"UPDATE {tableName} SET ";
 
-            var columns = EntityMap.Get(typeof(T)).Columns;
+            var columns = map.Columns;
             var column = columns.Single(c => c.PropertyInfo.Name == property);
             if(!string.IsNullOrEmpty(column.ColumnName))
             {
-                cmd.CommandText += $" {column} = @{column}";
-                cmd.Parameters.AddWithValue($"@{column}", GetSqliteValue(column.PropertyInfo, entity));
+                cmd.CommandText += $" {column.ColumnName} = @{column.ColumnName}";
+                cmd.Parameters.AddWithValue($"@{column.ColumnName}", GetSqliteValue(column.PropertyInfo, entity));
             }
             else
             {
@@ -148,7 +156,7 @@ namespace Linqlite.Linq
 
         private static string GetUpdatesFromEntity(object o, SqliteParameterCollection parameters)
         {
-            if (!(o is SqliteObservableEntity))
+            if (!(o is SqliteEntity))
                 throw new Exception("o doit être de type SqliteObservableEntity");
             // On parcours toutes les colonnes de o et on ajoutes au paramètres et on construite la chaine d'UPDATE xx = @xx AND yy = @ yy etc
             var columns = EntityMap.Get(o.GetType()).Columns;

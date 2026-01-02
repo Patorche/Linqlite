@@ -5,7 +5,7 @@ using System.Collections.ObjectModel;
 namespace Linqlite.Models
 {
     [TableAttribute("LIBRARY")]
-    public class Catalogue : SqliteObservableEntity
+    public class Catalogue : SqliteEntity
     {
         [ColumnAttribute(ColumnName = "id", IsKey = true)]
         public long Id { get; set; }

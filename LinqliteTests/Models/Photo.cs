@@ -1,13 +1,18 @@
 ﻿using Linqlite.Attributes;
+using Linqlite.Models;
 using Linqlite.Sqlite;
+using System.Windows.Input;
 
 
 namespace Linqlite.Models
 {
-    [TableAttribute("PHOTO")]
-    public class Photo : SqliteObservableEntity
+    [Table("PHOTO")]
+    public class Photo : SqliteEntity
     {
+        public static List<string> AcceptedExtentions = new() { ".jpg", ".jpeg", ".png", ".pef", ".bmp", ".tiff", ".dng" };
         private int _rate = 0;
+        private bool _isSelected = false;
+        private byte[]? _thumb = null;
         private GpsLocalisation _localisation = new();
         private int _thumbWidth;
         private int _thumbHeight;
@@ -15,31 +20,42 @@ namespace Linqlite.Models
         private bool _isLoadingImage = false;
         private string? _author = null;
 
-        [ColumnAttribute(ColumnName = "id", IsKey = true)]
-        public long Id { get; set; }
-        [ColumnAttribute(ColumnName = "filename", OnConflict = true)]
-        public string Filename { get; set; } = string.Empty;
-        [ColumnAttribute(ColumnName = "takendate")]
+        public bool IsMenuOpen
+        {
+            get => _isMenuOpen;
+            set => SetProperty(ref _isMenuOpen, value);
+        }
+        public bool IsLoadingImage
+        {
+            get => _isLoadingImage;
+            set => SetProperty(ref _isLoadingImage, value);
+        }
+
+        [Column(ColumnName = "id", IsKey = true)]
+        public long? Id { get; set; } = -1;
+        [Column(ColumnName = "filename", OnConflict = true)]
+        public string? Filename { get; set; } = string.Empty;
+        [Column(ColumnName = "takendate")]
         public DateTime? TakenDate { get; set; } = DateTime.Now;
-        [ColumnAttribute(ColumnName = "folder", OnConflict = true)]
-        public string Folder { get; set; } = string.Empty;
-        [ColumnAttribute(ColumnName = "width")]
-        public int Width { get; set; } = 0;
-        [ColumnAttribute(ColumnName = "height")]
-        public int Height { get; set; } = 0;
-        [ColumnAttribute(ColumnName = "type")]
-        public string Type { get; set; } = string.Empty;// JPEG, PEF etc
-        [ColumnAttribute(ColumnName = "author")]
+        [Column(ColumnName = "folder", OnConflict = true)]
+        public string? Folder { get; set; } = string.Empty;
+        [Column(ColumnName = "width")]
+        public int? Width { get; set; } = 0;
+        [Column(ColumnName = "height")]
+        public int? Height { get; set; } = 0;
+        [Column(ColumnName = "type")]
+        public string? Type { get; set; } = string.Empty;// JPEG, PEF etc
+        [Column(ColumnName = "author")]
         public string? Author
         {
             get => _author;
             set => SetProperty(ref _author, value);
         }
-        [ColumnAttribute(ColumnName = "camera")]
+        [Column(ColumnName = "camera")]
         public string? CameraName { get; set; }
-        [ColumnAttribute(ColumnName = "make")]
+        [Column(ColumnName = "make")]
         public string? Make { get; set; } = string.Empty;
-        [ColumnAttribute(IsObjectProperty = true)]
+        [Column(IsObjectProperty = true)]
         public GpsLocalisation? Localisation
         {
             get => _localisation;
@@ -47,16 +63,18 @@ namespace Linqlite.Models
             {
                 if (SetProperty(ref _localisation, value))
                 {
+                    if (_localisation != null)
+                        _localisation.Parent = this;
                 }
 
             }
         }
 
-        [ColumnAttribute(IsObjectProperty = true)]
+        [Column(IsObjectProperty = true)]
         public CameraSetting CameraSetting { get; set; }
 
         public string? Focal { get; set; } = string.Empty; // 50mm, 18-55mm etc
-        [ColumnAttribute(ColumnName = "rate")]
+        [Column(ColumnName = "rate")]
         public int Rate
         {
             get => _rate;
@@ -67,16 +85,30 @@ namespace Linqlite.Models
                 if (value > 5) value = 5;
                 SetProperty(ref _rate, value);
             }
-        }      
+        }
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set => SetProperty(ref _isSelected, value);
+        }
+        public byte[]? Thumb
+        {
+            get => _thumb;
+            set
+            {
+                SetProperty(ref _thumb, value);
+            }
 
-        [ColumnAttribute(ColumnName = "thumbwidth")]
+        }
+
+        [Column(ColumnName = "thumbwidth")]
         public int ThumbWidth
         {
             get => _thumbWidth;
             set => SetProperty(ref _thumbWidth, value);
         }
 
-        [ColumnAttribute(ColumnName = "thumbheight")]
+        [Column(ColumnName = "thumbheight")]
         public int ThumbHeight
         {
             get => _thumbHeight;
@@ -84,12 +116,20 @@ namespace Linqlite.Models
         }
 
 
-        [ColumnAttribute(ColumnName = "orientation")]
+        public bool IsImageLoaded { get; set; }
+
+        [Column(ColumnName = "orientation")]
         public int Orientation { get; set; }
 
+
+        // Cache interne pour le BitmapImage
+        /// <summary>
+        /// Retourne le BitmapImage gelé pour WPF. Construit et met en cache à la première demande.
+        /// </summary>
 
         public Photo()
         {
         }
+
     }
 }

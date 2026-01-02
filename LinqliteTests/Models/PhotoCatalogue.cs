@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace Linqlite.Models
 { 
     [Table("PHOTO_LIB", isJoin:true)]
-    public class PhotoCatalogue : SqliteObservableEntity
+    public class PhotoCatalogue : SqliteEntity
     {
         private bool _isDeleted = false;
 

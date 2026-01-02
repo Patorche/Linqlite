@@ -372,7 +372,7 @@ namespace Linqlite.Linq
             var outerExpr = new AliasReplacer(outerKeyLambda.Parameters[0], outerAlias)
                 .Visit(StripConvert(outerKeyLambda.Body));
 
-            v.Visit(outerExpr);
+            v.Visit(new SqlExpression(outerExpr));
 
             v._sb.Append(" = ");
 
@@ -380,7 +380,7 @@ namespace Linqlite.Linq
             var innerExpr = new AliasReplacer(innerKeyLambda.Parameters[0], innerAlias)
                 .Visit(StripConvert(innerKeyLambda.Body));
 
-            v.Visit(innerExpr);
+            v.Visit(new SqlExpression(innerExpr));
         }
 
         protected override Expression VisitBinary(BinaryExpression node)
@@ -428,8 +428,9 @@ namespace Linqlite.Linq
                 var type = GetEntityType(member);
                 var column = GetColumnName(type, member);
                 var alias = GetAlias(type);
-                _sb.Append($"({alias}.{column} = FALSE)"); 
-                return node;
+                var sql = $"({alias}.{column} = FALSE)";
+                _sb.Append(sql); 
+                return new SqlExpression(sql);
 
             }
             return base.VisitUnary(node);
@@ -531,8 +532,18 @@ namespace Linqlite.Linq
             
             if (node.Value is string s && s.Contains('.'))
             {
-                // C’est un alias SQL, on l’écrit tel quel
-                _sb.Append(s);
+                // C’est soit un alias SQL et on l’écrit tel quel soit une chaine de caractères ex "fichier.txt"
+                // On essaie de récupérer sa valeur.
+                if(node is SqlExpression || node is AliasReplacer)
+                {
+                    _sb.Append(s);
+                }
+                else 
+                { 
+                    var e = Evaluate(node);
+                    _sb.Append($"'{s}'");
+                }
+                
                 return node;
             }
 
@@ -549,8 +560,11 @@ namespace Linqlite.Linq
         protected override Expression VisitExtension(Expression node) 
         { 
             if (node is SqlExpression sql) 
-            { 
-                _sb.Append(sql.Sql); 
+            {
+                if (string.IsNullOrEmpty(sql.Sql))
+                    _sb.Append(StripDoubleQuotes(sql.Expression.ToString()));
+                else
+                    _sb.Append(sql.Sql); 
                 return node; 
             }
             return base.VisitExtension(node); 
@@ -606,6 +620,15 @@ namespace Linqlite.Linq
             while (e.NodeType == ExpressionType.Quote)
                 e = ((UnaryExpression)e).Operand;
             return e;
+        }
+
+        private static string StripDoubleQuotes(string exp)
+        {
+            if(exp.StartsWith('"') && exp.EndsWith('"'))
+            {
+                return exp.Substring(1, exp.Length - 2);
+            }
+            return exp;
         }
 
         private Type GetEntityType(Expression expr)

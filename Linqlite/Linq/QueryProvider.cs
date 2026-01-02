@@ -92,17 +92,17 @@ namespace Linqlite.Linq
 
 
 
-        public long Insert<T>(T entity) where T : SqliteObservableEntity, new()
+        public long Insert<T>(T entity) where T : SqliteEntity, new()
         {
             return SqlQuery<T>.Insert(entity, this);
         }
 
-        public void Delete<T>(T entity) where T : SqliteObservableEntity, new()
+        public void Delete<T>(T entity) where T : SqliteEntity, new()
         {
             SqlQuery<T>.Delete(entity, this);
         }
 
-        public void Update<T>(T entity, string property) where T : SqliteObservableEntity, new()
+        public void Update<T>(T entity, string property) where T : SqliteEntity, new()
         {
             SqlQuery<T>.Update(entity, property, this);
         }
@@ -135,14 +135,13 @@ namespace Linqlite.Linq
             TrackingMode? trackingMode;
             //var sql = Translate(expression, out trackingMode);
             SqlExpressionVisitor visitor = new SqlExpressionVisitor();
-            trackingMode = visitor.TrackingMode;
             var sql = visitor.Translate(expression);
-
+            trackingMode = visitor.TrackingMode;
             var elementType = TypeSystem.GetElementType(expression.Type);
 
             var method = typeof(SqlQuery<>)
                 .MakeGenericType(elementType)
-                .GetMethod(nameof(SqlQuery<SqliteObservableEntity>.Execute));
+                .GetMethod(nameof(SqlQuery<SqliteEntity>.Execute));
 
             return method.Invoke(null, new object[] { sql, this, trackingMode, visitor.SqliteParameters });
         }
@@ -193,7 +192,7 @@ namespace Linqlite.Linq
             return (TResult)Execute(expression);
         }
 
-        public void Attach(SqliteObservableEntity entity, TrackingMode? mode = TrackingMode.AutoUpdate)
+        public void Attach(SqliteEntity entity, TrackingMode? mode = TrackingMode.AutoUpdate)
         {
             switch (mode)
             {

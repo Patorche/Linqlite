@@ -56,7 +56,7 @@ namespace Linqlite.Mapping
         {
             if (EntityMaps.TryGetValue(type, out var map)) 
                 return map;
-            if(!type.IsSubclassOf(typeof(SqliteObservableEntity))) 
+            if(!type.IsSubclassOf(typeof(SqliteEntity))) 
             {
                 return null;
             }

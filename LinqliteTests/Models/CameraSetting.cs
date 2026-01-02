@@ -3,7 +3,7 @@ using Linqlite.Sqlite;
 
 namespace Linqlite.Models
 {
-    public class CameraSetting : SqliteObservableEntity
+    public class CameraSetting : SqliteEntity
     {
         [ColumnAttribute(ColumnName = "iso")]
         public int? Iso { get; set; }

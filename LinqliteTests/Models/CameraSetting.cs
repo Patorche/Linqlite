@@ -5,13 +5,13 @@ namespace Linqlite.Models
 {
     public class CameraSetting : SqliteEntity
     {
-        [ColumnAttribute(ColumnName = "iso")]
+        [ColumnAttribute("iso")]
         public int? Iso { get; set; }
-        [ColumnAttribute(ColumnName = "aperture")]
+        [ColumnAttribute("aperture")]
         public double? Aperture { get; set; }     // f/2.8 etc.
-        [ColumnAttribute(ColumnName = "shutterspeed")]
+        [ColumnAttribute("shutterspeed")]
         public double? ShutterSpeed { get; set; } // en secondes
-        [ColumnAttribute(ColumnName = "focal")]
+        [ColumnAttribute("focal")]
         public double? Focal { get; set; }  // en mm
 
         public string FocalString => Focal.ToString();

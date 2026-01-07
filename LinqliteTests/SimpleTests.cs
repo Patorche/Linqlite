@@ -8,17 +8,25 @@ namespace LinqliteTests
 {
     public class SimpleTests : TestBase
     {
+
         [Fact]
         public void Base()
         {
             var provider = new QueryProvider("E:\\Dev\\Photolab.db\\photolab.db");
             var catalogues = new QueryableTable<Catalogue>(provider);
-
             var sql = SqlFor(catalogues);
-            Assert.Equal("SELECT * FROM LIBRARY t0", sql);
+            Assert.Equal("SELECT t0.* FROM LIBRARY t0", sql);
+        }
 
-            List<Catalogue> l = catalogues.ToList();
-            int i = 0;
+        [Fact]
+        public void Where()
+        {
+            var provider = new QueryProvider("E:\\Dev\\Photolab.db\\photolab.db");
+            var catalogues = new QueryableTable<Catalogue>(provider);
+
+            var sql = SqlFor(catalogues.Where(c => c.Id == 7));
+            Assert.Equal("SELECT t0.* FROM LIBRARY t0 WHERE (t0.id = 7)", sql);
+
         }
 
         [Fact]
@@ -27,28 +35,18 @@ namespace LinqliteTests
             var provider = new QueryProvider();
             var photos = new QueryableTable<Photo>(provider);
 
-            var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename));
-            Assert.Equal("SELECT * FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename", sql);
+            var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder));
+            Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename ASC, t0.folder ASC", sql);
         }
 
         [Fact]
-        public void OrderByAsc()
+        public void OrderByDesc()
         {
             var provider = new QueryProvider();
             var photos = new QueryableTable<Photo>(provider);
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderByDescending(p => p.Filename));
-            Assert.Equal("SELECT * FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename DESC", sql);
-        }
-
-        [Fact]
-        public void OrderByThenBy1()
-        {
-            var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
-
-            var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder));
-            Assert.Equal("SELECT * FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename, t0.folder", sql);
+            Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename DESC", sql);
         }
 
         [Fact]
@@ -58,7 +56,7 @@ namespace LinqliteTests
             var photos = new QueryableTable<Photo>(provider);
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder).ThenByDescending(p => p.Width));
-            Assert.Equal("SELECT * FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename, t0.folder, t0.width DESC", sql);
+            Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename ASC, t0.folder ASC, t0.width DESC", sql);
         }
 
         [Fact]
@@ -68,7 +66,7 @@ namespace LinqliteTests
             var photos = new QueryableTable<Photo>(provider);
 
             var sql = SqlFor(photos.Take(100));
-            Assert.Equal("SELECT * FROM PHOTO t0 LIMIT 100", sql);
+            Assert.Equal("SELECT t0.* FROM PHOTO t0 LIMIT 100", sql);
         }
 
         [Fact]
@@ -78,7 +76,7 @@ namespace LinqliteTests
             var photos = new QueryableTable<Photo>(provider);
 
             var sql = SqlFor(photos.Skip(100));
-            Assert.Equal("SELECT * FROM PHOTO t0 LIMIT -1 OFFSET 100", sql);
+            Assert.Equal("SELECT t0.* FROM PHOTO t0 LIMIT -1 OFFSET 100", sql);
         }
 
         [Fact]
@@ -95,7 +93,7 @@ namespace LinqliteTests
             var sql = SqlFor(query);
 
             Assert.Equal(
-                "SELECT t0.id, t0.filename FROM PHOTO t0 ORDER BY t0.filename, t0.id",
+                "SELECT t0.id, t0.filename FROM PHOTO t0 ORDER BY t0.filename ASC, t0.id ASC",
                 sql
             );
         }
@@ -116,7 +114,7 @@ namespace LinqliteTests
             var sql = SqlFor(query);
 
             Assert.Equal(
-                "SELECT * FROM PHOTO t0 JOIN LIBRARY t1 ON t0.id = t1.id ORDER BY t0.filename, t1.creation_date",
+                "SELECT t0.* FROM PHOTO t0 JOIN LIBRARY t1 ON (t0.id = t1.id) ORDER BY t0.filename ASC, t1.creation_date ASC",
                 sql
             );
         }
@@ -138,7 +136,7 @@ namespace LinqliteTests
             var sql = SqlFor(query);
 
             Assert.Equal(
-                "SELECT t0.id, t0.filename, t1.id FROM PHOTO t0 JOIN LIBRARY t1 ON t0.id = t1.id ORDER BY t0.filename, t0.id, t1.id",
+                "SELECT t0.id, t0.filename, t1.id FROM PHOTO t0 JOIN LIBRARY t1 ON (t0.id = t1.id) ORDER BY t0.filename ASC, t0.id ASC, t1.id ASC",
                 sql
             );
         }

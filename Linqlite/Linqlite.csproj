@@ -16,6 +16,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Linq\SqlExpression.cs" />
+    <Compile Remove="Linq\SqlExpressionVisitor.cs" />
     <Compile Remove="Program.cs" />
   </ItemGroup>
 

@@ -1,10 +1,9 @@
 ﻿using Linqlite.Attributes;
 using Linqlite.Sqlite;
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TableAttribute = Linqlite.Attributes.TableAttribute;
 
 namespace Linqlite.Models
 { 
@@ -13,11 +12,13 @@ namespace Linqlite.Models
     {
         private bool _isDeleted = false;
 
-        [Column(ColumnName = "photo_id", JoinedTableName = "PHOTO")]
+        [Column("photo_id")]
+        [ForeignKey(typeof(Photo), nameof(Photo.Id),true)]
         public long? PhotoId { get; set; }
-        [Column(ColumnName = "lib_id", JoinedTableName = "LIBRARY")]
+        [Column("lib_id")]
+        [ForeignKey(typeof(Catalogue), nameof(Catalogue.Id), true)]
         public long CatalogueId { get; set; }
-        [Column(ColumnName = "deleted")]
+        [Column("deleted")]
         public bool IsDeleted 
         { 
             get => _isDeleted;

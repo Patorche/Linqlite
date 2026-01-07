@@ -1,0 +1,344 @@
+﻿using Linqlite.Linq.SqlExpressions;
+using Linqlite.Mapping;
+using System;
+using System.Collections.Generic;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+
+
+namespace Linqlite.Linq.SqlVisitor
+{
+    public class SqlTreeBuilderVisitor : ExpressionVisitor
+    {
+        private SqlExpression? _sqlSource;
+        private SqlSelectExpression? _sqlSelect;
+        private int _aliasNumber;
+        private TrackingMode _trackingMode;
+        private static readonly Dictionary<string, IMethodCallHandler> _methodBuilders = new()
+        {
+            ["Where"] = new WhereCallHandler(),
+            ["Select"] = new SelectCallHandler(),
+            ["OrderBy"] = new OrderByCallHandler(),
+            ["OrderByDescending"] = new OrderByDescendingCallHandler(),
+            ["ThenBy"] = new ThenByCallHandler(),
+            ["ThenByDescending"] = new ThenByDescendingCallHandler(),
+            ["Take"] = new TakeCallHandler(),
+            ["Skip"] = new SkipCallHandler(),
+            ["Contains"] = new ContainsCallHandler(),
+            ["Join"] = new JoinCallHandler()
+        };
+
+        private static readonly Dictionary<ExpressionType, string> _binaryOperators = new()
+        {
+            [ExpressionType.Equal] = " = ",
+            [ExpressionType.NotEqual] = " <> ",
+            [ExpressionType.LessThan] = " < ",
+            [ExpressionType.LessThanOrEqual] = " <= ",
+            [ExpressionType.GreaterThan] = " > ",
+            [ExpressionType.GreaterThanOrEqual] = " >= ",
+            [ExpressionType.AndAlso] = " AND ",
+            [ExpressionType.OrElse] = " OR "
+        };
+
+        public Dictionary<string, object> Parameters = new();
+
+        protected override Expression VisitMethodCall(MethodCallExpression node) 
+        {
+            if (node.Method.Name == "WithTrackingMode")
+            {
+                _trackingMode = (TrackingMode)((ConstantExpression)node.Arguments[1]).Value;
+                return Visit(node.Arguments[0]); // on continue sans ce nœud 
+            }
+
+            if (_methodBuilders.TryGetValue(node.Method.Name, out var handler)) 
+                return handler.Handle(node, this); 
+            return base.VisitMethodCall(node); 
+        }
+
+
+        public SqlExpression Build(Expression expression)
+        {
+            // point d’entrée
+            SqlExpression sqlExpr = (SqlExpression)Visit(expression);
+            if(_sqlSelect == null)
+            {
+                _sqlSelect = new SqlSelectExpression(sqlExpr.Type)
+                {
+                    From = (SqlSourceExpression)sqlExpr
+                };
+            }
+            return _sqlSelect!;
+        }
+
+        protected override Expression VisitMember(MemberExpression node)
+        {
+            if (IsClosureAccess(node))
+            {
+                var value = EvaluateClosureMember(node);
+                return new SqlParameterExpression(value, node.Type);
+            }
+
+
+            var memberDeclaringType = node.Member.DeclaringType;
+
+            // Cas 1 : la source courante est une table simple
+            if (_sqlSource is SqlSelectExpression select)
+            {
+                // On regarde si on est en train de projjeter une entité complète.
+                if (IsMappedEntity(node.Type))
+                {
+                    return new SqlEntityReferenceExpression(select.From.Alias, node.Type);
+                }
+                else
+                {
+                    // On regarde si le membre est mappé à une colonne du select
+                    var colName = GetColumnName(_sqlSource.Type, node);
+                    //if (select.Type == memberDeclaringType)
+                    if (!string.IsNullOrEmpty(colName))
+                        return new SqlColumnExpression(((SqlSelectExpression)select).From.Alias, colName, node.Type);
+                }
+            }
+
+            // Cas 2 : la source courante est une jointure
+            if (_sqlSource is SqlJoinExpression join)
+            {
+                if (join.Left.Type == memberDeclaringType)
+                    return new SqlColumnExpression(((SqlSourceExpression)join.Left).Alias, GetColumnName(join.Left.Type, node), node.Type);
+
+                if (join.Right.Type == memberDeclaringType)
+                    return new SqlColumnExpression(((SqlSourceExpression)join.Right).Alias, GetColumnName(join.Right.Type, node), node.Type);
+            }
+
+            if (_sqlSource is SqlTableExpression table)
+            {
+                if(table.Type == memberDeclaringType)
+                {
+                    return new SqlColumnExpression(((SqlTableExpression)table).Alias, GetColumnName(table.Type, node), node.Type);
+                }
+            }
+
+            if (node.Expression is MemberExpression inner)
+            {
+                var target = EvaluateMemberExpression(inner);
+                var value = GetMemberValue(target, node.Member);
+                return new SqlParameterExpression(value, node.Type);
+            }
+
+            Type projType = _sqlSelect.Projection.Type;
+            if(memberDeclaringType == projType)
+            {
+                int i = 0 ;
+                if (_sqlSelect.Projection is SqlMemberProjectionExpression proj)
+                {
+                    if (proj.Columns.TryGetValue(node.Member, out var exp))
+                    {
+                        return exp;
+                    }
+                }
+            }
+
+           
+
+            return base.VisitMember(node);
+            //throw new InvalidOperationException("Member does not match any SQL source.");
+        }
+
+        private bool IsMappedEntity(Type type)
+        {
+            var map = EntityMap.Get(type);
+            return map != null;
+        }
+
+        protected override Expression VisitParameter(ParameterExpression node)
+        {
+            return _sqlSource;
+        }
+
+
+        protected override Expression VisitConstant(ConstantExpression node)
+        {
+            if (node.Value is IQueryable q) 
+            { 
+                var entityType = q.ElementType; 
+                var tableName = EntityMap.Get(entityType).TableName; 
+                var alias = GetNextAlias(); 
+                return new SqlTableExpression(tableName, alias, entityType); 
+            }
+            //return base.VisitConstant(node);
+
+            return new SqlConstantExpression(node.Value, node.Type);
+              
+        }
+
+        private SqlExpression? CreateSelectForTable(Type elementType)
+        {
+            var map = EntityMap.Get(elementType);
+            SqlTableExpression table = new SqlTableExpression(map.TableName, GetNextAlias(), elementType);
+            return new SqlSelectExpression(elementType) { From = table };
+        }
+
+        protected override Expression VisitUnary(UnaryExpression node)
+        {
+            if (node.NodeType == ExpressionType.Convert || node.NodeType == ExpressionType.ConvertChecked)
+            { 
+                return Visit(node.Operand); 
+            }
+
+            if (node.NodeType == ExpressionType.Not)
+                return new SqlUnaryExpression("NOT", (SqlExpression)Visit(node.Operand));
+
+            return base.VisitUnary(node);
+        }
+
+        protected override Expression VisitBinary(BinaryExpression node)
+        {
+            var left = (SqlExpression)Visit(node.Left);
+            var right = (SqlExpression)Visit(node.Right);
+            var op = GetSqlOperator(node.NodeType);
+
+            return new SqlBinaryExpression(left, op, right);
+        }
+
+        internal Expression StripQuotes(Expression e)
+        {
+            while (e.NodeType == ExpressionType.Quote)
+                e = ((UnaryExpression)e).Operand;
+            return e;
+        }
+
+        internal Expression StripConvert(Expression expr)
+        {
+            while (expr.NodeType == ExpressionType.Convert ||
+                   expr.NodeType == ExpressionType.ConvertChecked)
+            {
+                expr = ((UnaryExpression)expr).Operand;
+            }
+            return expr;
+        }
+
+        private static string GetSqlOperator(ExpressionType type)
+        {
+            var op = type switch
+            {
+                ExpressionType.Not => "NOT",
+                ExpressionType.Equal => "=",
+                ExpressionType.NotEqual => "<>",
+                ExpressionType.GreaterThan => ">",
+                ExpressionType.GreaterThanOrEqual => ">=",
+                ExpressionType.LessThan => "<",
+                ExpressionType.LessThanOrEqual => "<=",
+                ExpressionType.AndAlso => "AND",
+                ExpressionType.And => "AND",
+                ExpressionType.OrElse => "OR",
+                ExpressionType.Or => "OR",
+                ExpressionType.Add => "+",
+                ExpressionType.Subtract => "-",
+                ExpressionType.Multiply => "*",
+                ExpressionType.Divide => "/",
+                ExpressionType.Modulo => "%",
+                _ => throw new InvalidOperationException($"Opérateur non géré : {type}")
+            };
+            return op;
+        }
+
+        private string GetColumnName(Type type, MemberExpression expression)
+        {
+              // récupération du path 
+              string path = "";
+              Expression exp = expression;
+              while (exp is MemberExpression m)
+              {
+                  path = m.Member.Name + (string.IsNullOrEmpty(path) ? "" : ".") + path;
+                  if (IsAnonymousType(m.Expression.Type) || IsTable(m.Expression.Type))
+                      break;
+                  exp = m.Expression;
+              }
+              return EntityMap.Get(type)?.Column(path);
+            
+        }
+
+        internal string GetNextAlias()
+        {
+            return $"t{_aliasNumber++}";
+        }
+
+        internal void SetCurrentSource(SqlExpression join)
+        {
+            _sqlSource = join;
+        }
+
+        private static bool IsAnonymousType(Type t)
+        {
+            return Attribute.IsDefined(t, typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute))
+                   && t.Name.Contains("AnonymousType")
+                   && t.IsGenericType;
+        }
+
+        private bool IsTable(Type type)
+        {
+            if (EntityMap.Get(type) == null || !EntityMap.Get(type).IsFromTable) return false;
+            return true;
+        }
+
+        internal SqlExpression GetCurrentSource()
+        {
+            return _sqlSource;
+        }
+
+        internal void SetSelectSource(SqlSelectExpression selectExpression)
+        {
+            _sqlSelect = selectExpression;
+        }
+
+        internal SqlSelectExpression GetSelectSource()
+        {
+            return _sqlSelect;
+        }
+
+        private static bool IsClosureAccess(MemberExpression node)
+        {
+            return node.Expression is ConstantExpression c &&
+                   node.Member is FieldInfo f &&
+                   c.Value != null &&
+                   IsClosureClass(c.Value.GetType());
+        }
+
+        private static bool IsClosureClass(Type type)
+        {
+            return type.IsNestedPrivate && type.Name.Contains("DisplayClass");
+        }
+
+        private static object? EvaluateClosureMember(MemberExpression node)
+        {
+            var closure = (ConstantExpression)node.Expression;
+            var field = (FieldInfo)node.Member;
+            return field.GetValue(closure.Value);
+        }
+        private static object? EvaluateMemberExpression(MemberExpression node)
+        {
+            if (node.Expression is ConstantExpression c)
+                return GetMemberValue(c.Value, node.Member);
+
+            if (node.Expression is MemberExpression inner)
+            {
+                var target = EvaluateMemberExpression(inner);
+                return GetMemberValue(target, node.Member);
+            }
+
+            throw new NotSupportedException("Unsupported captured variable structure");
+        }
+        private static object? GetMemberValue(object? target, MemberInfo member)
+        {
+            return member switch
+            {
+                FieldInfo f => f.GetValue(target),
+                PropertyInfo p => p.GetValue(target),
+                _ => throw new NotSupportedException($"Unsupported member: {member}")
+            };
+        }
+
+
+    }
+}

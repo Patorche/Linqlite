@@ -2,7 +2,7 @@
 using Linqlite.Linq;
 using Linqlite.Models;
 
-namespace Linqlite.Tests 
+namespace LinqliteTests 
 {
 
     public class JoinTests : TestBase
@@ -20,7 +20,7 @@ namespace Linqlite.Tests
      
 
             Assert.Equal(
-                "SELECT * FROM PHOTO t0 JOIN PHOTO_LIB t1 ON t0.id = t1.photo_id WHERE (t1.deleted = FALSE)",
+                "SELECT t0.* FROM PHOTO t0 JOIN PHOTO_LIB t1 ON (t0.id = t1.photo_id) WHERE (t1.deleted = FALSE)",
                 sql);
         }
 

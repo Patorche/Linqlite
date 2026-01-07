@@ -8,12 +8,29 @@ using static OneOf.Types.TrueFalseOrNull;
 
 namespace Linqlite.Linq
 {
-    public class QueryableTable<T> : IQueryable<T>
+    public class QueryableTable<T> : IQueryable<T>, IQueryableTableDefinition
     {
-        public TrackingMode TrackingModeOverride;
-        public Expression Expression { get; }
+        private IQueryProvider? _provider;
+
+        public TrackingMode? TrackingModeOverride;
+        public Expression Expression { get; private set; }
         public Type ElementType => typeof(T);
-        public IQueryProvider Provider { get; }
+        public Type EntityType => typeof(T);
+        public IQueryProvider Provider 
+        { 
+            get => _provider;
+            set
+            {
+                _provider = value;
+                TrackingModeOverride = TrackingModeOverride ?? ((QueryProvider)Provider).DefaultTrackingMode;
+                Expression = ApplyTrackingMode(Expression);
+            } 
+        }
+        public QueryableTable(TrackingMode? trackingModeOverride = null)
+        {
+            TrackingModeOverride = trackingModeOverride;
+            Expression = Expression.Constant(this);
+        }
 
         public QueryableTable(IQueryProvider provider, TrackingMode? trackingModeOverride = null)
         {

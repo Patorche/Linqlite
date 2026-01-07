@@ -16,7 +16,7 @@ namespace LinqliteTests
 
             var sql = SqlFor(photos);
 
-            Assert.Equal("SELECT * FROM PHOTO t0".Trim(),sql.Trim());
+            Assert.Equal("SELECT t0.* FROM PHOTO t0",sql);
         }
 
         [Fact]
@@ -27,7 +27,7 @@ namespace LinqliteTests
 
             var sql = SqlFor(photos.Where(p => true));
 
-            Assert.Equal("SELECT * FROM PHOTO t0 WHERE True", sql);
+            Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE TRUE", sql);
         }
 
         [Fact]
@@ -38,7 +38,7 @@ namespace LinqliteTests
 
             var sql = SqlFor(photos.Where(p => p.Id == 15));
 
-            Assert.Equal("SELECT * FROM PHOTO t0 WHERE (t0.id = 15)", sql);
+            Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id = 15)", sql);
         }
 
         [Fact]
@@ -49,7 +49,7 @@ namespace LinqliteTests
 
             var sql = SqlFor(photos.Where(p => p.Localisation.Latitude >= 35 && p.Width > 0));
 
-            Assert.Equal("SELECT * FROM PHOTO t0 WHERE ((t0.latitude >= 35) AND (t0.width > 0))", sql);
+            Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE ((t0.latitude >= 35) AND (t0.width > 0))", sql);
         }
 
         [Fact]
@@ -73,6 +73,18 @@ namespace LinqliteTests
             var sql = SqlFor(photos.Where(p => p.Author.Contains("pat")).Select(p => new { p.Id, p.Filename }));
 
             Assert.Equal("SELECT t0.id, t0.filename FROM PHOTO t0 WHERE (t0.author LIKE '%pat%')", sql);
+        }
+
+        [Fact]
+        public void ContainsList()
+        {
+            var provider = new QueryProvider();
+            var photos = new QueryableTable<Photo>(provider);
+            List<long?> ids = new() {15000,900,800,1502 };
+
+            var sql = SqlFor(photos.Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Filename }));
+
+            Assert.Equal("SELECT t0.id, t0.filename FROM PHOTO t0 WHERE (t0.id IN (15000, 900, 800, 1502))", sql);
         }
     }
 }

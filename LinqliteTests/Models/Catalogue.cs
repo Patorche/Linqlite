@@ -7,19 +7,21 @@ namespace Linqlite.Models
     [TableAttribute("LIBRARY")]
     public class Catalogue : SqliteEntity
     {
-        [ColumnAttribute(ColumnName = "id", IsKey = true)]
+        [ColumnAttribute("id")]
+        [PrimaryKey(AutoIncrement = true)]
         public long Id { get; set; }
         private string _name = string.Empty;
         private ObservableCollection<string> _folders = [];
         private int _totalCount = 0;
 
 
-        [ColumnAttribute(ColumnName = "name")]
+        [ColumnAttribute("name")]
+        [Unique(OnConflict=ConflictAction.Fail)]
         public string Name 
         {  get => _name;
             set => SetProperty(ref _name, value);
         }
-        [ColumnAttribute(ColumnName = "creation_date")]
+        [ColumnAttribute("creation_date")]
         public DateTime CreationDate { get; set; } = DateTime.Now;
         
         public ObservableCollection<string> Folders

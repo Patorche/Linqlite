@@ -5,10 +5,11 @@ using System.Text;
 
 namespace Linqlite.Linq
 {
-    class SqlExpression : Expression
+    public class SqlExpressionOld : Expression
     {
         public string Sql { get; }
         public Expression Expression { get; }
+        
 
         public SqlExpression(string sql)
         {

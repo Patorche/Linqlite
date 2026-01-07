@@ -1,6 +1,7 @@
 ﻿using Linqlite.Attributes;
 using Linqlite.Models;
 using Linqlite.Sqlite;
+using System.Diagnostics.CodeAnalysis;
 using System.Windows.Input;
 
 
@@ -31,31 +32,40 @@ namespace Linqlite.Models
             set => SetProperty(ref _isLoadingImage, value);
         }
 
-        [Column(ColumnName = "id", IsKey = true)]
+        [Column("id")]
+        [PrimaryKey(AutoIncrement = true)]
         public long? Id { get; set; } = -1;
-        [Column(ColumnName = "filename", OnConflict = true)]
+       
+        [Column("filename")]
+        [UniqueGroup("fullpath",OnConflict = ConflictAction.Ignore)]
         public string? Filename { get; set; } = string.Empty;
-        [Column(ColumnName = "takendate")]
+      
+        [Column("takendate")]
+        [NotNull()]
         public DateTime? TakenDate { get; set; } = DateTime.Now;
-        [Column(ColumnName = "folder", OnConflict = true)]
+      
+        [Column("folder")]
+        [UniqueGroup("fullpath", OnConflict = ConflictAction.Ignore)]
         public string? Folder { get; set; } = string.Empty;
-        [Column(ColumnName = "width")]
+      
+        [Column("width")]
         public int? Width { get; set; } = 0;
-        [Column(ColumnName = "height")]
+      
+        [Column("height")]
         public int? Height { get; set; } = 0;
-        [Column(ColumnName = "type")]
+        [Column("type")]
         public string? Type { get; set; } = string.Empty;// JPEG, PEF etc
-        [Column(ColumnName = "author")]
+        [Column("author")]
         public string? Author
         {
             get => _author;
             set => SetProperty(ref _author, value);
         }
-        [Column(ColumnName = "camera")]
+        [Column("camera")]
         public string? CameraName { get; set; }
-        [Column(ColumnName = "make")]
+        [Column("make")]
         public string? Make { get; set; } = string.Empty;
-        [Column(IsObjectProperty = true)]
+        [Column()]
         public GpsLocalisation? Localisation
         {
             get => _localisation;
@@ -70,7 +80,7 @@ namespace Linqlite.Models
             }
         }
 
-        [Column(IsObjectProperty = true)]
+        [Column()] 
         public CameraSetting CameraSetting { get; set; }
 
         public string? Focal { get; set; } = string.Empty; // 50mm, 18-55mm etc

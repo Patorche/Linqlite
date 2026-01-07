@@ -17,10 +17,11 @@ namespace Linqlite.Mapping
         public List<EntityPropertyInfo> Columns;
         public string TableName { get; }
         public bool IsFromTable { get => !string.IsNullOrWhiteSpace(TableName); }
+        public List<UniqueGroup> UniqueGroups;
         private EntityMap(Type type) 
         { 
             TableName = GetTablename(type);
-            Columns = MappingBuilder.BuildMap(type);
+            Columns = MappingBuilder.BuildMap(type, out UniqueGroups);
         }
 
         public string Column(string propertyNamePath)

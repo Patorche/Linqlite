@@ -27,7 +27,7 @@ namespace Linqlite.Linq
 
         }
 
-        public static IEnumerable<T> Execute(string sql, QueryProvider provider, TrackingMode trackingMode, Dictionary<string, object> parameters)
+        public static IEnumerable<T> Execute(string sql, QueryProvider provider, TrackingMode trackingMode, IReadOnlyDictionary<string, object> parameters)
         {
             CheckConnection(provider.Connection);
             
@@ -71,7 +71,7 @@ namespace Linqlite.Linq
             sql += " VALUES(" + head[1] + ")";
             if (!string.IsNullOrEmpty(head[2]))
             {
-                sql += " ON  CONFLICT (" + head[2] + ") DO NOTHING";
+                sql += " ON CONFLICT (" + head[2] + ") DO NOTHING";
             }
             sql += ";";
 
@@ -223,12 +223,12 @@ namespace Linqlite.Linq
                     columnsList += column.ColumnName;
                     parametersList += "@" + column.ColumnName;
 
-                    if (column.IsOnconflict)
+                   /* if (column.IsOnconflict)
                     {
                         onConflictList += !firstConflict ? "," : "";
                         onConflictList += column.ColumnName;
                         firstConflict = false;
-                    }
+                    }*/
                 }
                 first = false;
             }
@@ -259,7 +259,7 @@ namespace Linqlite.Linq
             }
         }
 
-        private static object GetSqliteValue(PropertyInfo property, object item)
+        public static object GetSqliteValue(PropertyInfo property, object item)
         {
             Type type = property.PropertyType;
             if (Nullable.GetUnderlyingType(type) != null)

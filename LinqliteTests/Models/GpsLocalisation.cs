@@ -20,7 +20,7 @@ namespace Linqlite.Models
         public Photo Parent { get; set; }
 
 
-        [Column(ColumnName = "latitude")]
+        [Column("latitude")]
         public double? Latitude
         {
             get => _latitude;
@@ -31,7 +31,7 @@ namespace Linqlite.Models
             }
         }
 
-        [Column(ColumnName = "longitude")]
+        [Column("longitude")]
         public double? Longitude
         {
             get => _longitude;
@@ -43,7 +43,7 @@ namespace Linqlite.Models
         }
 
 
-        [Column(ColumnName = "city")]
+        [Column("city")]
         public string City
         {
             get => _city;
@@ -54,7 +54,7 @@ namespace Linqlite.Models
             }
         }
 
-        [Column(ColumnName = "country")]
+        [Column("country")]
         public string Country
         {
             get => _country;

@@ -12,7 +12,7 @@ namespace LinqliteTests
         public void SelectSimple() 
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = new QueryableTable<Photo>(provider, TrackingMode.Manual);
 
             var sql = SqlFor(photos);
 

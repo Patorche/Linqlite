@@ -15,7 +15,6 @@ namespace Linqlite.Linq.SqlVisitor
         private SqlExpression? _sqlSource;
         private SqlSelectExpression? _sqlSelect;
         private int _aliasNumber;
-        private TrackingMode _trackingMode;
         private static readonly Dictionary<string, IMethodCallHandler> _methodBuilders = new()
         {
             ["Where"] = new WhereCallHandler(),
@@ -44,18 +43,46 @@ namespace Linqlite.Linq.SqlVisitor
 
         public Dictionary<string, object> Parameters = new();
 
-        protected override Expression VisitMethodCall(MethodCallExpression node) 
+        protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            if (node.Method.Name == "WithTrackingMode")
+            // Méthodes terminales avec prédicat
+           /* if (HasPredicateOverload(node.Method.Name, node.Arguments.Count))
             {
-                _trackingMode = (TrackingMode)((ConstantExpression)node.Arguments[1]).Value;
-                return Visit(node.Arguments[0]); // on continue sans ce nœud 
-            }
+                var visitedSource = Visit(node.Arguments[0]);
+                System.Diagnostics.Debug.WriteLine(visitedSource.Type.Name);
+                var predicate = (LambdaExpression)StripQuotes(node.Arguments[1]);
+                var elementType = predicate.Parameters[0].Type;
 
-            if (_methodBuilders.TryGetValue(node.Method.Name, out var handler)) 
-                return handler.Handle(node, this); 
-            return base.VisitMethodCall(node); 
+                // Expression<Func<T,bool>>
+                var funcType = typeof(Func<,>).MakeGenericType(elementType, typeof(bool));
+                var typedPredicate = Expression.Lambda(funcType,predicate.Body, predicate.Parameters);
+
+                // Where(source, predicate)
+                var whereCall = Expression.Call(
+                    typeof(Queryable),
+                    "Where",
+                    new[] { elementType },
+                    visitedSource,
+                    typedPredicate
+                );
+
+                // Single(source) ou First(source), etc.
+                return Expression.Call(
+                    typeof(Queryable),
+                    node.Method.Name,
+                    new[] { elementType },
+                    whereCall
+                );
+            }
+           */
+
+
+            if (_methodBuilders.TryGetValue(node.Method.Name, out var handler))
+                return handler.Handle(node, this);
+
+            return base.VisitMethodCall(node);
         }
+
 
 
         public SqlExpression Build(Expression expression)
@@ -74,9 +101,9 @@ namespace Linqlite.Linq.SqlVisitor
 
         protected override Expression VisitMember(MemberExpression node)
         {
-            if (IsClosureAccess(node))
+            if (IsCapturedValue(node))
             {
-                var value = EvaluateClosureMember(node);
+                var value = EvaluateCapturedValue(node);
                 return new SqlParameterExpression(value, node.Type);
             }
 
@@ -297,6 +324,20 @@ namespace Linqlite.Linq.SqlVisitor
             return _sqlSelect;
         }
 
+        private static bool IsCapturedValue(MemberExpression node)
+        {
+            return GetRootExpression(node) is ConstantExpression;
+        }
+
+        private static Expression GetRootExpression(Expression expr)
+        {
+            while (expr is MemberExpression me)
+                expr = me.Expression;
+
+            return expr;
+        }
+
+
         private static bool IsClosureAccess(MemberExpression node)
         {
             return node.Expression is ConstantExpression c &&
@@ -310,12 +351,38 @@ namespace Linqlite.Linq.SqlVisitor
             return type.IsNestedPrivate && type.Name.Contains("DisplayClass");
         }
 
-        private static object? EvaluateClosureMember(MemberExpression node)
+        private static object? EvaluateCapturedValue(MemberExpression node)
         {
-            var closure = (ConstantExpression)node.Expression;
-            var field = (FieldInfo)node.Member;
-            return field.GetValue(closure.Value);
+            // On remonte jusqu'à la racine
+            var stack = new Stack<MemberExpression>();
+            Expression expr = node;
+
+            while (expr is MemberExpression me)
+            {
+                stack.Push(me);
+                expr = me.Expression;
+            }
+
+            // expr est maintenant un ConstantExpression
+            var constant = (ConstantExpression)expr;
+            object? value = constant.Value;
+
+            // On applique chaque MemberInfo dans l'ordre
+            while (stack.Count > 0)
+            {
+                var m = stack.Pop().Member;
+
+                if (m is FieldInfo fi)
+                    value = fi.GetValue(value);
+                else if (m is PropertyInfo pi)
+                    value = pi.GetValue(value);
+                else
+                    throw new NotSupportedException("Unsupported member type");
+            }
+
+            return value;
         }
+
         private static object? EvaluateMemberExpression(MemberExpression node)
         {
             if (node.Expression is ConstantExpression c)
@@ -339,6 +406,20 @@ namespace Linqlite.Linq.SqlVisitor
             };
         }
 
+        private static bool HasPredicateOverload(string methodName, int argCount)
+        {
+            // Méthodes terminales qui ont une version avec prédicat
+            return argCount == 2 && methodName switch
+            {
+                "Single" => true,
+                "SingleOrDefault" => true,
+                "First" => true,
+                "FirstOrDefault" => true,
+                "Any" => true,
+                "Count" => true,
+                _ => false
+            };
+        }
 
     }
 }

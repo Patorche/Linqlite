@@ -8,8 +8,8 @@ namespace Linqlite.Linq.SqlExpressions
 {
     internal class SqlParameterExpression : SqlExpression
     {
-        public object Value { get; set; }
-        internal SqlParameterExpression(object value, Type type) : base(type)
+        public object? Value { get; set; }
+        internal SqlParameterExpression(object? value, Type type) : base(type)
         {
             Value = value;
         }

@@ -17,11 +17,11 @@ namespace Linqlite.Mapping
         public List<EntityPropertyInfo> Columns;
         public string TableName { get; }
         public bool IsFromTable { get => !string.IsNullOrWhiteSpace(TableName); }
-        public List<UniqueGroup> UniqueGroups;
+        public List<IUniqueConstraint> UniqueConstraints;
         private EntityMap(Type type) 
         { 
             TableName = GetTablename(type);
-            Columns = MappingBuilder.BuildMap(type, out UniqueGroups);
+            Columns = MappingBuilder.BuildMap(type, out UniqueConstraints);
         }
 
         public string Column(string propertyNamePath)
@@ -65,6 +65,12 @@ namespace Linqlite.Mapping
             EntityMaps.TryAdd(type, map); 
             
             return map;
+        }
+
+        public IUniqueConstraint? GetUpsertKey()
+        {
+            IUniqueConstraint? constraint = UniqueConstraints.SingleOrDefault(u => u.IsUpsertKey);
+            return constraint;
         }
 
         internal string Projection(string alias)

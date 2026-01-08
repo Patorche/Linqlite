@@ -48,39 +48,20 @@ namespace Linqlite.Linq.SqlGeneration
             {
                 _sb.Append(',').AppendLine().Append(fk);
             }
-            if(_uniques.Count > 0)
+
+
+            for(int i = 0; i < map.UniqueConstraints.Count; i++)
             {
                 _sb.Append(',').AppendLine();
-                for (int i = 0; i< _uniques.Count ; i++)
-                {
-                    if (_uniques[i].Value != ConflictAction.None)
-                    {
-
-                        if (i > 0)
-                            _sb.Append(",").AppendLine();
-                        var conflict = GetOnConflict(_uniques[i].Value);
-                        _sb.Append('\t').Append($"UNIQUE(\"{_uniques[i].Key}\") ON CONFLICT {conflict}");
-                    }
-                }
+                IUniqueConstraint c = map.UniqueConstraints[i];
+                if(c.OnConflict == ConflictAction.None)
+                    continue;
+                var conflict = GetOnConflict(c.OnConflict);
+                var cols = string.Join(", ", c.Columns.Select(s => $"\"{s}\""));
+                _sb.Append('\t').Append($"UNIQUE({cols}) ON CONFLICT {conflict}");
             }
 
-            if (map.UniqueGroups != null && map.UniqueGroups.Count > 0)
-            {
-                _sb.Append(',').AppendLine();
-                for(int i = 0;i< map.UniqueGroups.Count ; i++)
-                {
-                    if (i > 0)
-                        _sb.Append(",").AppendLine();
-                    
-                    if (map.UniqueGroups[i].OnConflict != ConflictAction.None)
-                    {
-                        var conflict = GetOnConflict(map.UniqueGroups[i].OnConflict);
-                        var cols = string.Join(", ", map.UniqueGroups[i].Columns.Select(s => $"\"{s}\""));
-                        _sb.Append('\t').Append($"UNIQUE({cols}) ON CONFLICT {conflict}");
-                    }
 
-                }
-            }
             _sb.AppendLine().Append(");");
             
         }

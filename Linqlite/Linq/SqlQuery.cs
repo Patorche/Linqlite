@@ -60,19 +60,26 @@ namespace Linqlite.Linq
         }
 
 
-        public static long Insert(T entity, QueryProvider provider)
+        public static long InsertOrGetId(T entity, QueryProvider provider, TrackingMode trackingMode)
         {
             CheckConnection(provider.Connection);
 
-            var tableName = EntityMap.Get(typeof(T)).TableName;
+            var map = EntityMap.Get(typeof(T));
+            IUniqueConstraint? upsertKey = map.GetUpsertKey();
+            if(upsertKey == null)
+                throw new Exception("InsertOrGetId requiert un groupe unique. Vous devez définir une propriété Groupe. Utilisez Insert sinon");
+
+            var tableName = map.TableName;
             var sql = $"INSERT INTO {tableName}";
             string[] head = GetColumnsInsertQuery(entity);
             sql += "(" + head[0] + ")";
             sql += " VALUES(" + head[1] + ")";
-            if (!string.IsNullOrEmpty(head[2]))
-            {
-                sql += " ON CONFLICT (" + head[2] + ") DO NOTHING";
-            }
+
+            var cols = string.Join(", ", upsertKey.Columns.Select(c => $"\"{c}\""));
+            sql += " ON CONFLICT (" + cols + ")"; //  DO NOTHING";
+            sql += $" DO UPDATE SET {upsertKey.Columns[0]} = excluded.{upsertKey.Columns[0]}";
+            sql += " RETURNING " + map.Columns.Single(c => c.IsPrimaryKey).ColumnName;
+
             sql += ";";
 
             using var cmd = provider.Connection.CreateCommand();
@@ -81,24 +88,51 @@ namespace Linqlite.Linq
             Console.WriteLine("SQL: " + sql);
 
             cmd.CommandText = sql;
-            int res = cmd.ExecuteNonQuery();
-            
+            var res = cmd.ExecuteScalar();
+            long id = Convert.ToInt64(res);
+            HydratorBuilder.SetPrimaryKey(entity, id);
+            return id;
+        }
+
+        public static long Insert(T entity, QueryProvider provider, TrackingMode trackingMode)
+        {
+            CheckConnection(provider.Connection);
+
+            var map = EntityMap.Get(typeof(T));
+
+            var tableName = map.TableName;
+            var sql = $"INSERT INTO {tableName}";
+            string[] head = GetColumnsInsertQuery(entity);
+            sql += "(" + head[0] + ")";
+            sql += " VALUES(" + head[1] + ");";
+
+            using var cmd = provider.Connection.CreateCommand();
+            PopulateInsertCommand(cmd, entity);
+
+            cmd.CommandText = sql;
+            var res = cmd.ExecuteNonQuery();
+
             if (res == 1)
             {
                 var idQuery = $"SELECT last_insert_rowid();";
                 var q = new SqliteCommand(idQuery, provider.Connection);
-                return (long)q.ExecuteScalar()!;
+                provider.Attach(entity, trackingMode);
+                var id = Convert.ToInt64(q.ExecuteScalar()!);
+                HydratorBuilder.SetPrimaryKey(entity, id);
+                return id;
             }
 
-            return -1; // L'objet existe, on revoit -1. A l'appelant d'aller erécupérer l'objet si besoin
+            return -1;
         }
+
+
 
         public static void Delete(T entity, QueryProvider provider)
         {
             CheckConnection(provider.Connection);
 
             var table = EntityMap.Get(typeof(T)).TableName;
-            var keys = EntityMap.Get(typeof(T)).Columns.Where(c => c.IsKey);
+            var keys = EntityMap.Get(typeof(T)).Columns.Where(c => c.IsPrimaryKey);
 
 
             using var cmd = provider.Connection.CreateCommand();
@@ -118,14 +152,22 @@ namespace Linqlite.Linq
 
         internal static void Update(T entity, string property, QueryProvider provider)
         {
+            CheckConnection(provider.Connection);
+            if (string.IsNullOrEmpty(property)) return;
+
             var map = EntityMap.Get(entity.GetType());
-            string tableName = map.TableName;
-            using var cmd = provider.Connection.CreateCommand(); 
-            cmd.CommandText = $"UPDATE {tableName} SET ";
 
             var columns = map.Columns;
-            var column = columns.Single(c => c.PropertyInfo.Name == property);
-            if(!string.IsNullOrEmpty(column.ColumnName))
+            var column = columns.SingleOrDefault(c => c.PropertyInfo.Name == property);
+            if (column == default(EntityPropertyInfo))
+                return;
+
+            string tableName = map.TableName;
+            using var cmd = provider.Connection.CreateCommand();
+
+            cmd.CommandText = $"UPDATE {tableName} SET ";
+
+            if (!string.IsNullOrEmpty(column.ColumnName))
             {
                 cmd.CommandText += $" {column.ColumnName} = @{column.ColumnName}";
                 cmd.Parameters.AddWithValue($"@{column.ColumnName}", GetSqliteValue(column.PropertyInfo, entity));
@@ -139,7 +181,7 @@ namespace Linqlite.Linq
             // Where
             cmd.CommandText += " WHERE ";
 
-            var keys = columns.Where(c => c.IsKey);
+            var keys = columns.Where(c => c.IsPrimaryKey);
             string where = "";
             foreach (var key in keys) 
             {
@@ -150,7 +192,6 @@ namespace Linqlite.Linq
             }
 
             cmd.CommandText += where;
-
             cmd.ExecuteNonQuery();
         }
 
@@ -164,6 +205,8 @@ namespace Linqlite.Linq
             string updateString = "";
             foreach(var col in columns)
             {
+                if (col.IsPrimaryKey)
+                    continue;
                 if (!string.IsNullOrEmpty(col.ColumnName))
                 {
                     if(!string.IsNullOrEmpty(updateString)) { updateString += ", "; }
@@ -186,7 +229,35 @@ namespace Linqlite.Linq
 
         public static void Update(T entity, QueryProvider provider)
         {
+            CheckConnection(provider.Connection);
+             
+            var map = EntityMap.Get(entity.GetType());
 
+            var columns = map.Columns;
+            
+            string tableName = map.TableName;
+            using var cmd = provider.Connection.CreateCommand();
+
+            cmd.CommandText = $"UPDATE {tableName} SET ";
+
+            string updtString = GetUpdatesFromEntity(entity, cmd.Parameters);
+            cmd.CommandText += updtString;
+            
+            // Where
+            cmd.CommandText += " WHERE ";
+
+            var keys = columns.Where(c => c.IsPrimaryKey);
+            string where = "";
+            foreach (var key in keys)
+            {
+                if (!string.IsNullOrEmpty(where))
+                    where += " AND ";
+                where += $"{key.ColumnName} = @{key.ColumnName}";
+                cmd.Parameters.AddWithValue($"@{key.ColumnName}", GetSqliteValue(key.PropertyInfo, entity));
+            }
+
+            cmd.CommandText += where;
+            cmd.ExecuteNonQuery();
         }
 
 
@@ -208,7 +279,7 @@ namespace Linqlite.Linq
 
             foreach (var column in EntityMap.Get(entity.GetType()).Columns)
             {
-                if (column.IsKey) continue;
+                if (column.IsPrimaryKey) continue;
                 columnsList += !first ? "," : "";
                 parametersList += !first ? "," : "";
                 if (string.IsNullOrEmpty(column.ColumnName))
@@ -241,7 +312,7 @@ namespace Linqlite.Linq
             var columns = EntityMap.Get(item.GetType()).Columns;
             foreach (var column in columns)
             {
-                if (column.IsKey)
+                if (column.IsPrimaryKey)
                     continue;
                 if (string.IsNullOrEmpty(column.ColumnName))
                 {

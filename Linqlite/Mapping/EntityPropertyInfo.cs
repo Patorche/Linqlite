@@ -13,7 +13,6 @@ namespace Linqlite.Mapping
         public PropertyInfo PropertyInfo { get; set; } 
 
         public Type PropertyType => PropertyInfo.PropertyType;
-        public bool IsKey { get; set; }
         public bool IsPrimaryKey { get; internal set; }
         public bool IsAutoIncrement { get; internal set; }
         public (Type Entity, string Key, bool CascadeDelete)? ForeignKey { get; internal set; }

@@ -8,6 +8,7 @@ namespace Linqlite.Attributes
     public sealed class UniqueAttribute : Attribute
     {
         public ConflictAction OnConflict { get; set; } = ConflictAction.None;
+        public bool IsUpsertKey { get; set; } = false;
     }
 
 }

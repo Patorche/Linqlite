@@ -1,6 +1,7 @@
 ﻿using Linqlite.Mapping;
 using Linqlite.Sqlite;
 using Microsoft.Data.Sqlite;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq.Expressions;
 
 namespace Linqlite.Hydration
@@ -27,6 +28,12 @@ namespace Linqlite.Hydration
             {
                 return null;
             }
+        }
+
+        public static void SetPrimaryKey<T>(T entity, long id) where T : SqliteEntity
+        {
+            var primary = EntityMap.Get(typeof(T)).Columns.Single(c => c.IsPrimaryKey);
+            primary.PropertyInfo.SetValue(entity, id);
         }
 
     }

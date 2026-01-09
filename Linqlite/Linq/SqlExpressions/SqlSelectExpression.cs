@@ -5,11 +5,11 @@ using ZSpitz.Util;
 
 namespace Linqlite.Linq.SqlExpressions
 {
-    public class SqlSelectExpression : SqlExpression
+    internal class SqlSelectExpression : SqlExpression
     {
-        private List<SqlOrderByExpression> _orders = new();
+        private readonly List<SqlOrderByExpression> _orders = [];
 
-        internal SqlSourceExpression From { get; set; }
+        internal required SqlSourceExpression From { get; set; }
         internal SqlExpression? Where { get; set; }
         internal AbstractSqlProjectionExpression? Projection { get; private set; }
         internal IReadOnlyList<SqlOrderByExpression> Orders => _orders;

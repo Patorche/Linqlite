@@ -16,9 +16,9 @@ namespace Linqlite.Linq.SqlVisitor
             {
                 selectExpression = s;
             }
-            else if (builder.GetSelectSource() != null)
+            else if (builder.GetSelectSource() is { } ss)
             {
-                return builder.GetSelectSource();
+                return ss;
             }
             else
             {

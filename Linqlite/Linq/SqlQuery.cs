@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
 using System.Security.Principal;
@@ -16,25 +17,11 @@ namespace Linqlite.Linq
 {
     public static class SqlQuery<T> where T : SqliteEntity, new()
     {
-        public static Func<SqliteDataReader, T> Hydrator { get; private set; }
-
-        static SqlQuery()
-        {
-            if (!typeof(T).IsAbstract)
-            {
-                //Hydrator = HydratorBuilder.CompileHydrator<T>(); 
-            }
-
-        }
-
         public static IEnumerable<T> Execute(string sql, QueryProvider provider, TrackingMode trackingMode, IReadOnlyDictionary<string, object> parameters)
         {
             CheckConnection(provider.Connection);
             
-
-            Console.WriteLine("SQL: " + sql);
-
-            var command = provider.Connection.CreateCommand(); 
+            var command = provider?.Connection?.CreateCommand() ?? throw new InvalidOperationException("Le provider a retourné un commande null !");
             command.CommandText = sql;
             foreach (var parameter in parameters)
             { 
@@ -45,10 +32,8 @@ namespace Linqlite.Linq
             {
                 while (reader.Read())
                 {
-                    //yield return Hydrate<T>(reader); 
-                    //yield return HydratorBuilder.CompileHydrator<TResult>();
-                    T entity = HydratorBuilder.GetEntity<T>(reader);
-                    provider.Attach(entity, trackingMode);
+                    T entity = HydratorBuilder.GetEntity<T>(reader) ?? throw new InvalidDataException("Entité null retournée");
+                    provider?.Attach(entity, trackingMode);
                     yield return entity;
                 }
             }
@@ -64,33 +49,34 @@ namespace Linqlite.Linq
         {
             CheckConnection(provider.Connection);
 
-            var map = EntityMap.Get(typeof(T));
+            var map = EntityMap.Get(typeof(T)) ?? throw new UnreachableException("Tentaive d'insertion d'un objet non mappé");
+
             IUniqueConstraint? upsertKey = map.GetUpsertKey();
             if(upsertKey == null)
-                throw new Exception("InsertOrGetId requiert un groupe unique. Vous devez définir une propriété Groupe. Utilisez Insert sinon");
+                throw new Exception("InsertOrGetId requière un groupe unique. Vous devez définir une propriété Groupe. Utilisez Insert sinon");
 
-            var tableName = map.TableName;
-            var sql = $"INSERT INTO {tableName}";
-            string[] head = GetColumnsInsertQuery(entity);
-            sql += "(" + head[0] + ")";
-            sql += " VALUES(" + head[1] + ")";
+            StringBuilder sb = new StringBuilder();
+            sb.Append($"INSERT INTO {map.TableName}");
+
+            var ColsParams = GetColumnsInsertQuery(entity);
+            sb.Append("(" + ColsParams.Columns + ")")
+                .Append(" VALUES(" + ColsParams.Parameters + ")");
 
             var cols = string.Join(", ", upsertKey.Columns.Select(c => $"\"{c}\""));
-            sql += " ON CONFLICT (" + cols + ")"; //  DO NOTHING";
-            sql += $" DO UPDATE SET {upsertKey.Columns[0]} = excluded.{upsertKey.Columns[0]}";
-            sql += " RETURNING " + map.Columns.Single(c => c.IsPrimaryKey).ColumnName;
+            sb.Append(" ON CONFLICT (" + cols + ")");
+            sb.Append($" DO UPDATE SET {upsertKey.Columns[0]} = excluded.{upsertKey.Columns[0]}");
+            sb.Append(" RETURNING " + map.Columns.Single(c => c.IsPrimaryKey).ColumnName);
+            sb.Append(";");
 
-            sql += ";";
-
-            using var cmd = provider.Connection.CreateCommand();
+            using var cmd = provider?.Connection?.CreateCommand() ?? throw new InvalidOperationException("Le provider a retourné un commande null !");
             PopulateInsertCommand(cmd, entity);
 
-            Console.WriteLine("SQL: " + sql);
 
-            cmd.CommandText = sql;
+            cmd.CommandText = sb.ToString();
             var res = cmd.ExecuteScalar();
             long id = Convert.ToInt64(res);
             HydratorBuilder.SetPrimaryKey(entity, id);
+            provider.Attach(entity, trackingMode);
             return id;
         }
 
@@ -98,18 +84,19 @@ namespace Linqlite.Linq
         {
             CheckConnection(provider.Connection);
 
-            var map = EntityMap.Get(typeof(T));
+            var map = EntityMap.Get(typeof(T)) ?? throw new UnreachableException("Tentaive d'insertion d'un objet non mappé");
 
-            var tableName = map.TableName;
-            var sql = $"INSERT INTO {tableName}";
-            string[] head = GetColumnsInsertQuery(entity);
-            sql += "(" + head[0] + ")";
-            sql += " VALUES(" + head[1] + ");";
+            StringBuilder sb = new StringBuilder();
+            sb.Append($"INSERT INTO {map.TableName}");
 
-            using var cmd = provider.Connection.CreateCommand();
+            var ColsParams = GetColumnsInsertQuery(entity);
+            sb.Append("(" + ColsParams.Columns + ")")
+                .Append(" VALUES(" + ColsParams.Parameters + ")");
+
+            using var cmd = provider?.Connection?.CreateCommand() ?? throw new InvalidOperationException("Le provider a retourné un commande null !");
             PopulateInsertCommand(cmd, entity);
 
-            cmd.CommandText = sql;
+            cmd.CommandText = sb.ToString();
             var res = cmd.ExecuteNonQuery();
 
             if (res == 1)
@@ -119,6 +106,7 @@ namespace Linqlite.Linq
                 provider.Attach(entity, trackingMode);
                 var id = Convert.ToInt64(q.ExecuteScalar()!);
                 HydratorBuilder.SetPrimaryKey(entity, id);
+                provider.Attach(entity, trackingMode);
                 return id;
             }
 
@@ -131,132 +119,131 @@ namespace Linqlite.Linq
         {
             CheckConnection(provider.Connection);
 
-            var table = EntityMap.Get(typeof(T)).TableName;
-            var keys = EntityMap.Get(typeof(T)).Columns.Where(c => c.IsPrimaryKey);
+            var map = EntityMap.Get(typeof(T)) ?? throw new UnreachableException("Tentaive de suppression d'un objet non mappé");
+            var table = map.TableName;
+            var key = map.GetPrimaryKey();
 
+            StringBuilder sb = new StringBuilder();
+            
+            sb.Append($"DELETE FROM {table} WHERE ");
+            sb.Append($"{key.ColumnName} = @{key.ColumnName}");
 
-            using var cmd = provider.Connection.CreateCommand();
-            var query = $"DELETE FROM {table} WHERE ";
-            var where = string.Empty;
-
-            foreach(var k in keys)
-            {
-                if (!string.IsNullOrEmpty(where))
-                    where += " AND ";
-                where += $"{k.ColumnName} = @{k.ColumnName}"; 
-                cmd.Parameters.AddWithValue($"@{k.ColumnName}", GetSqliteValue(k.PropertyInfo, entity));
-            }
-            cmd.CommandText = query + where;
+            using var cmd = provider?.Connection?.CreateCommand() ?? throw new InvalidOperationException("Le provider a retourné un commande null !");
+            cmd.Parameters.AddWithValue($"@{key.ColumnName}", GetSqliteValue(key.PropertyInfo, entity));
+            
+            cmd.CommandText = sb.ToString();
             cmd.ExecuteNonQuery();
+            provider.Detach(entity);
         }
 
-        internal static void Update(T entity, string property, QueryProvider provider)
+        internal static void Update(T entity, string? property, QueryProvider provider)
         {
+            ArgumentNullException.ThrowIfNull(property);
+
             CheckConnection(provider.Connection);
+
             if (string.IsNullOrEmpty(property)) return;
 
-            var map = EntityMap.Get(entity.GetType());
+            var map = EntityMap.Get(entity.GetType()) ?? throw new UnreachableException("Tentaive de mise à jour d'un objet non mappé");
+            var tableName = map.TableName;
+            var key = map.GetPrimaryKey();
 
             var columns = map.Columns;
             var column = columns.SingleOrDefault(c => c.PropertyInfo.Name == property);
             if (column == default(EntityPropertyInfo))
                 return;
 
-            string tableName = map.TableName;
-            using var cmd = provider.Connection.CreateCommand();
+            
+            using var cmd = provider?.Connection?.CreateCommand() ?? throw new InvalidOperationException("Le provider a retourné un commande null !"); ;
 
-            cmd.CommandText = $"UPDATE {tableName} SET ";
+            StringBuilder sb = new StringBuilder();
+            sb.Append($"UPDATE {tableName} SET ");
 
             if (!string.IsNullOrEmpty(column.ColumnName))
             {
-                cmd.CommandText += $" {column.ColumnName} = @{column.ColumnName}";
+                sb.Append($" {column.ColumnName} = @{column.ColumnName}");
                 cmd.Parameters.AddWithValue($"@{column.ColumnName}", GetSqliteValue(column.PropertyInfo, entity));
             }
             else
             {
-                object v = column.PropertyInfo.GetValue(entity);
-                string updtString = GetUpdatesFromEntity(v, cmd.Parameters);
-                cmd.CommandText += updtString;
+                object? v = column?.PropertyInfo?.GetValue(entity);
+                if (v != null)
+                {
+                    string updtString = GetUpdatesFromEntity(v, cmd.Parameters);
+                    sb.Append(updtString);
+                }
             }
             // Where
-            cmd.CommandText += " WHERE ";
-
-            var keys = columns.Where(c => c.IsPrimaryKey);
-            string where = "";
-            foreach (var key in keys) 
-            {
-                if (!string.IsNullOrEmpty(where))
-                    where += " AND ";
-                where += $"{key.ColumnName} = @{key.ColumnName}";
-                cmd.Parameters.AddWithValue($"@{key.ColumnName}", GetSqliteValue(key.PropertyInfo, entity));
-            }
-
-            cmd.CommandText += where;
+            sb.Append(" WHERE ");
+            sb.Append($"{key.ColumnName} = @{key.ColumnName}");
+            cmd.Parameters.AddWithValue($"@{key.ColumnName}", GetSqliteValue(key.PropertyInfo, entity));
+            
+            cmd.CommandText += sb.ToString();
             cmd.ExecuteNonQuery();
         }
 
         private static string GetUpdatesFromEntity(object o, SqliteParameterCollection parameters)
         {
-            if (!(o is SqliteEntity))
-                throw new Exception("o doit être de type SqliteObservableEntity");
+            if (o is not SqliteEntity)
+                throw new Exception("o doit être de type SqliteEntity");
+           
             // On parcours toutes les colonnes de o et on ajoutes au paramètres et on construite la chaine d'UPDATE xx = @xx AND yy = @ yy etc
-            var columns = EntityMap.Get(o.GetType()).Columns;
+            var map = EntityMap.Get(o.GetType()) ?? throw new UnreachableException("Tentative de mise à jour d'un objet non mappé");
+            var columns = map.Columns;
 
-            string updateString = "";
+            StringBuilder updateString = new StringBuilder();
             foreach(var col in columns)
             {
                 if (col.IsPrimaryKey)
                     continue;
                 if (!string.IsNullOrEmpty(col.ColumnName))
                 {
-                    if(!string.IsNullOrEmpty(updateString)) { updateString += ", "; }
-                    updateString += $" {col.ColumnName} = @{col.ColumnName}";
+                    if (updateString.Length > 0)
+                        updateString.Append(", ");
+                    updateString.Append($" {col.ColumnName} = @{col.ColumnName}");
                     parameters.AddWithValue($"@{col.ColumnName}", GetSqliteValue(col.PropertyInfo, o));
                 }
                 else
                 {
-                    object v = col.PropertyInfo.GetValue(o);
-                    string subString = GetUpdatesFromEntity(v, parameters);
-                    if (subString != null) 
+                    object? v = col.PropertyInfo.GetValue(o);
+                    if (v != null)
                     {
-                        if (!string.IsNullOrEmpty(updateString)) { updateString += ", "; }
-                        updateString += subString;
+                        string subString = GetUpdatesFromEntity(v, parameters);
+                        if (subString != null)
+                        {
+                            if (updateString.Length > 0)
+                                updateString.Append(", ");
+                            updateString.Append(subString);
+                        }
                     }
                 }
             }
-            return updateString;
+            return updateString.ToString();
         }
 
         public static void Update(T entity, QueryProvider provider)
         {
             CheckConnection(provider.Connection);
              
-            var map = EntityMap.Get(entity.GetType());
-
-            var columns = map.Columns;
-            
+            var map = EntityMap.Get(entity.GetType()) ?? throw new UnreachableException("Tentative de mise à jour d'un objet non mappé");
             string tableName = map.TableName;
-            using var cmd = provider.Connection.CreateCommand();
-
-            cmd.CommandText = $"UPDATE {tableName} SET ";
-
-            string updtString = GetUpdatesFromEntity(entity, cmd.Parameters);
-            cmd.CommandText += updtString;
+            var columns = map.Columns;
+            var key = map.GetPrimaryKey();
             
-            // Where
-            cmd.CommandText += " WHERE ";
+            StringBuilder sb = new StringBuilder();
 
-            var keys = columns.Where(c => c.IsPrimaryKey);
-            string where = "";
-            foreach (var key in keys)
-            {
-                if (!string.IsNullOrEmpty(where))
-                    where += " AND ";
-                where += $"{key.ColumnName} = @{key.ColumnName}";
-                cmd.Parameters.AddWithValue($"@{key.ColumnName}", GetSqliteValue(key.PropertyInfo, entity));
-            }
+            sb.Append($"UPDATE {tableName} SET ");
 
-            cmd.CommandText += where;
+            using var cmd = provider?.Connection?.CreateCommand() ?? throw new InvalidOperationException("Le provider a retourné un commande null !"); ;
+            string updtString = GetUpdatesFromEntity(entity, cmd.Parameters);
+            sb.Append(updtString);
+            
+            sb.Append(" WHERE ");
+
+            sb.Append($"{key.ColumnName} = @{key.ColumnName}");
+            cmd.Parameters.AddWithValue($"@{key.ColumnName}", GetSqliteValue(key.PropertyInfo, entity));
+
+            cmd.CommandText = sb.ToString();
             cmd.ExecuteNonQuery();
         }
 
@@ -269,47 +256,44 @@ namespace Linqlite.Linq
             }
         }
 
-        private static string[] GetColumnsInsertQuery(object entity)
+        private static (string Columns, string Parameters) GetColumnsInsertQuery(object entity)
         {
             string columnsList = "";
             string parametersList = "";
-            string onConflictList = "";
             bool first = true;
-            bool firstConflict = true;
-
-            foreach (var column in EntityMap.Get(entity.GetType()).Columns)
+            var map = EntityMap.Get(entity.GetType()) ?? throw new UnreachableException("Tentative d'insertion' d'un objet non mappé");
+            foreach (var column in map.Columns)
             {
                 if (column.IsPrimaryKey) continue;
+
                 columnsList += !first ? "," : "";
                 parametersList += !first ? "," : "";
                 if (string.IsNullOrEmpty(column.ColumnName))
                 {
                     // on doit aller récupérer les colonnes liées au type de l'objet
-                    string[] objParts = GetColumnsInsertQuery(column.PropertyInfo.GetValue(entity));
-                    columnsList += objParts[0];
-                    parametersList += objParts[1];
+                    object? o = column?.PropertyInfo?.GetValue(entity);
+                    if (o != null)
+                    {
+                        (string Columns, string Parameters) objParts = GetColumnsInsertQuery(o);
+                        columnsList += objParts.Columns;
+                        parametersList += objParts.Parameters;
+                    }
                 }
                 else
                 {
                     columnsList += column.ColumnName;
                     parametersList += "@" + column.ColumnName;
-
-                   /* if (column.IsOnconflict)
-                    {
-                        onConflictList += !firstConflict ? "," : "";
-                        onConflictList += column.ColumnName;
-                        firstConflict = false;
-                    }*/
                 }
                 first = false;
             }
 
-            return [columnsList, parametersList, onConflictList];
+            return (columnsList, parametersList);
         }
 
         private static void PopulateInsertCommand(SqliteCommand cmd, object item)
         {
-            var columns = EntityMap.Get(item.GetType()).Columns;
+            var map = EntityMap.Get(item.GetType()) ??  throw new UnreachableException("Tentative d'insertion' d'un objet non mappé");
+            var columns = map.Columns;
             foreach (var column in columns)
             {
                 if (column.IsPrimaryKey)
@@ -332,7 +316,7 @@ namespace Linqlite.Linq
 
         public static object GetSqliteValue(PropertyInfo property, object item)
         {
-            Type type = property.PropertyType;
+            Type? type = property.PropertyType;
             if (Nullable.GetUnderlyingType(type) != null)
             {
                 type = Nullable.GetUnderlyingType(type);
@@ -341,8 +325,9 @@ namespace Linqlite.Linq
             switch (Type.GetTypeCode(type))
             {
                 case TypeCode.DateTime:
-                    DateTime? date = (DateTime)property.GetValue(item);
-                    object strDate = date?.ToString("yyyy-MM-dd HH:mm:ss");
+                    object? o = property?.GetValue(item) ;
+                    DateTime? date =  o as DateTime?;
+                    object? strDate = date?.ToString("yyyy-MM-dd HH:mm:ss");
                     return strDate ?? DBNull.Value;
                 default:
                     return property.GetValue(item) ?? DBNull.Value;

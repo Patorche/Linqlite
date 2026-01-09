@@ -36,7 +36,6 @@ namespace Linqlite.Models
             get => _totalCount;
             set => SetProperty(ref _totalCount, value);
         }
-        public bool IsNew { get; set; }
 
         public Catalogue() 
         {

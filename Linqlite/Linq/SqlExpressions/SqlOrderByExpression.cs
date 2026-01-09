@@ -9,7 +9,7 @@ namespace Linqlite.Linq.SqlExpressions
         public SqlExpression Key { get; }
         public bool Ascending { get; }
 
-        public SqlOrderByExpression(SqlExpression key, bool ascending) : base("", null) 
+        public SqlOrderByExpression(SqlExpression key, bool ascending) : base("", typeof(object)) 
         {
             Key = key;
             Ascending = ascending;

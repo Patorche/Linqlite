@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -61,8 +62,16 @@ namespace Linqlite.Linq.SqlVisitor
 
         private SqlExpression HandleEnumerableContains(MethodCallExpression node, SqlTreeBuilderVisitor builder)
         {
+            if (node == null)
+                throw new UnreachableException("node ne peut être null.");
+
+            if(node.Object == null)
+                throw new UnreachableException("node.Object ne peut être null.");
+
             var lstObj = EvaluateMemberExpression(node.Object);
-            var list = (IEnumerable)lstObj;
+            var list = lstObj as IEnumerable;
+            if(list == null)
+                list = new List<object>();
 
             var constList = new List<SqlExpression>();
 
@@ -78,6 +87,12 @@ namespace Linqlite.Linq.SqlVisitor
 
         private SqlExpression HandleStringContains(MethodCallExpression node, SqlTreeBuilderVisitor builder)
         {
+            if (node == null)
+                throw new UnreachableException("node ne peut être null.");
+
+            if (node.Object == null)
+                throw new UnreachableException("node.Object ne peut être null.");
+
             SqlExpression source = (SqlExpression)builder.Visit(node.Object);
             var arg = node.Arguments[0];
             var value = "";
@@ -99,7 +114,7 @@ namespace Linqlite.Linq.SqlVisitor
             return type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>));
         }
 
-        private static object? EvaluateMemberExpression(Expression expr)
+        private static object? EvaluateMemberExpression(Expression? expr)
         {
             switch (expr)
             {
@@ -116,7 +131,7 @@ namespace Linqlite.Linq.SqlVisitor
                     };
 
                 default:
-                    throw new NotSupportedException($"Unsupported expression: {expr.NodeType}");
+                    throw new NotSupportedException($"Unsupported expression: {expr?.NodeType}");
             }
         }
 

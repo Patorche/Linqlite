@@ -51,7 +51,6 @@ namespace LinqliteTests
                 System.Diagnostics.Debug.WriteLine(p.Author);
             }
 
-            int i = 0;
         }
 
 
@@ -72,7 +71,6 @@ namespace LinqliteTests
             Assert.Equal("SELECT t0.id, t0.filename, t0.takendate, t0.folder, t0.width, t0.height, t0.type, t0.author, t0.camera, t0.make, t0.latitude, t0.longitude, t0.city, t0.country, t0.iso, t0.aperture, t0.shutterspeed, t0.focal, t0.rate, t0.thumbwidth, t0.thumbheight, t0.orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON (t0.id = t1.photo_id) WHERE ((t1.lib_id = @v0) AND (t1.deleted = TRUE)) ORDER BY t0.takendate ASC",
                 res);
             List<Photo> list = query.ToList();
-            int i = 0;
         }
 
 
@@ -163,9 +161,6 @@ namespace LinqliteTests
             photos.Update(photomodified);
             var p = photos.Single(p => p.Id == photo.Id);
             photos.Delete(photo);
-
-
-            int i = 0;
         }
 
 

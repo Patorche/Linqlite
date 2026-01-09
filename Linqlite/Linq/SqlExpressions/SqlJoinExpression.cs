@@ -9,10 +9,10 @@ namespace Linqlite.Linq.SqlExpressions
         internal SqlExpression Left { get; set; }
         internal SqlExpression Right { get; set; }
         public SqlExpression On { get; private set; }
-        public SqlJoinType JoinType { get; }
-        public SqlJoinExpression(string alias, Type type) : base(alias, type)
+        public SqlJoinType JoinType { get; } = SqlJoinType.Cross;
+       /* public SqlJoinExpression(string alias, Type type) : base(alias, type)
         {
-        }
+        }*/
 
         public SqlJoinExpression(SqlExpression left, SqlExpression right, SqlExpression on, SqlJoinType joinType, string alias, Type elementType) : base(alias, elementType)
         {
@@ -22,12 +22,12 @@ namespace Linqlite.Linq.SqlExpressions
             JoinType = joinType;
         }
 
-        public SqlJoinExpression(SqlExpression left, SqlExpression right, SqlJoinType joinType, string alias) : base(alias, right.Type)
+      /*  public SqlJoinExpression(SqlExpression left, SqlExpression right, SqlJoinType joinType, string alias) : base(alias, right.Type)
         {
             Left = left;
             Right = right;
             JoinType = joinType;
-        }
+        }*/
 
         public void SetOn(SqlExpression on)
         {
@@ -40,6 +40,7 @@ namespace Linqlite.Linq.SqlExpressions
         Inner, 
         LeftOuter, 
         RightOuter, 
-        FullOuter 
+        FullOuter,
+        Cross
     }
 }

@@ -7,10 +7,10 @@ namespace Linqlite.Linq.SqlExpressions
     public sealed class SqlContainsExpression : SqlExpression
     {
         public SqlExpression Source { get; }
-        public SqlExpression Value { get; }
+        public SqlExpression? Value { get; } = null;
         public SqlContainsType ContainsType { get; }
 
-        public SqlContainsExpression(SqlExpression source, SqlExpression value, SqlContainsType type)
+        public SqlContainsExpression(SqlExpression source, SqlExpression? value, SqlContainsType type)
             : base(typeof(bool))
         {
             Source = source;

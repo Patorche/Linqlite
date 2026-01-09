@@ -16,16 +16,17 @@ namespace Linqlite.Mapping
             {
                 bool isCol = false;
                 // 1. Propriété simple avec attribut
-                var propertyInfo = new EntityPropertyInfo();
+                EntityPropertyInfo propertyInfo;
 
-                var colAttr = prop.GetCustomAttribute<ColumnAttribute>();
-                if (colAttr != null)
-                {
-                    propertyInfo.ColumnName = colAttr.ColumnName;
-                    propertyInfo.PropertyInfo = prop;
-                    isCol = true;
-                }
-
+                var colAttr = prop.GetCustomAttribute<ColumnAttribute>(); 
+                if (colAttr == null) // Propriété non mappée
+                    continue;
+                
+                propertyInfo = new EntityPropertyInfo() { PropertyInfo = prop };
+                propertyInfo.ColumnName = colAttr.ColumnName;
+                propertyInfo.PropertyInfo = prop;
+                isCol = true;
+                
                 var primary = prop.GetCustomAttribute<PrimaryKeyAttribute>();
                 if (primary != null)
                 {

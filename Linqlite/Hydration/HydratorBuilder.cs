@@ -2,29 +2,33 @@
 using Linqlite.Sqlite;
 using Microsoft.Data.Sqlite;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Diagnostics;
 using System.Linq.Expressions;
 
 namespace Linqlite.Hydration
 {
     public static class HydratorBuilder
     {
-        public static T GetEntity<T>(this SqliteDataReader reader) where T : SqliteEntity, new()
+        public static T? GetEntity<T>(this SqliteDataReader reader) where T : SqliteEntity, new()
         {
             try
             {
                 T entity = EntityFactory<T>.CreateInstance();
-                foreach (var column in EntityMap.Get(typeof(T)).Columns)
+                var map = EntityMap.Get(typeof(T));
+                if (map == null)
+                    return null;
+                foreach (var column in map.Columns)
                 {
                     try
                     {
                         column.PropertyInfo.SetValue(entity, reader.GetValue(column));
                     }
-                    catch (Exception ex) { }
+                    catch (Exception) { }
                 }
                 entity.IsNew = false;
                 return entity;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return null;
             }
@@ -32,7 +36,11 @@ namespace Linqlite.Hydration
 
         public static void SetPrimaryKey<T>(T entity, long id) where T : SqliteEntity
         {
-            var primary = EntityMap.Get(typeof(T)).Columns.Single(c => c.IsPrimaryKey);
+            var map = EntityMap.Get(typeof(T));
+            if (map == null)
+                throw new UnreachableException("Entitymap est null.");
+
+            var primary = map.Columns.Single(c => c.IsPrimaryKey);
             primary.PropertyInfo.SetValue(entity, id);
         }
 

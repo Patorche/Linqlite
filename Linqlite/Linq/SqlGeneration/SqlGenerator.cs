@@ -37,7 +37,7 @@ namespace Linqlite.Linq.SqlGeneration
         }
 
 
-        private void VisitExpression(SqlExpression expr)
+        private void VisitExpression(SqlExpression? expr)
         {
             switch (expr)
             {
@@ -82,13 +82,13 @@ namespace Linqlite.Linq.SqlGeneration
                     break;
 
                 default:
-                    throw new NotSupportedException($"Expression non supportée : {expr.GetType()}");
+                    throw new NotSupportedException($"Expression non supportée : {expr?.GetType()}");
             }
         }
 
         private void VisitContains(SqlContainsExpression con)
         {
-            _sb.Append("(");
+            _sb.Append('(');
             VisitExpression(con.Source);
             var op = con.ContainsType switch
             {
@@ -99,7 +99,6 @@ namespace Linqlite.Linq.SqlGeneration
             _sb.Append($" {op} ");
             VisitExpression(con.Value);
             _sb.Append(")");
-            int i = 0;
         }
 
 
@@ -160,7 +159,6 @@ namespace Linqlite.Linq.SqlGeneration
             Visit(source.Right);
             _sb.Append(" ON ");
             VisitExpression(source.On);
-            int i = 0;
         }
 
         /*
@@ -264,7 +262,7 @@ namespace Linqlite.Linq.SqlGeneration
         private void VisitParameter(SqlParameterExpression par)
         {
             var name = GetNextAliasParameter();
-            _parameters.Add(name, par.Value);
+            _parameters.Add(name, par.Value ?? DBNull.Value);
             _sb.Append(name);
         }
 
@@ -294,7 +292,7 @@ namespace Linqlite.Linq.SqlGeneration
                 return "NULL";
             }
 
-            Type type = item.GetType();
+            Type? type = item.GetType();
             if (Nullable.GetUnderlyingType(type) != null)
             {
                 type = Nullable.GetUnderlyingType(type);
@@ -303,8 +301,8 @@ namespace Linqlite.Linq.SqlGeneration
             switch (Type.GetTypeCode(type))
             {
                 case TypeCode.DateTime:
-                    DateTime? date = (DateTime)item;
-                    object strDate = date?.ToString("yyyy-MM-dd HH:mm:ss");
+                    DateTime? date = item as DateTime?;
+                    object? strDate = date?.ToString("yyyy-MM-dd HH:mm:ss");
                     return "'" + (strDate ?? DBNull.Value) + "'";
                 case TypeCode.Boolean:
                     return (bool)item ? "TRUE" : "FALSE";

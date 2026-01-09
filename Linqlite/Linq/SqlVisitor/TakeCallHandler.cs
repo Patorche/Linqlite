@@ -12,7 +12,10 @@ namespace Linqlite.Linq.SqlVisitor
         {
             var source = (SqlExpression)builder.Visit(node.Arguments[0]);
             SqlSelectExpression selectExpression = SqlExpressionHelper.CreateSqlSelectExpression(node, source, builder, false);
-            var limit = (int)((ConstantExpression)builder.StripQuotes(node.Arguments[1])).Value;
+            var o = builder.StripQuotes(node.Arguments[1]) ?? throw new InvalidDataException("Limit ne peut être null");
+            var c = o as ConstantExpression;
+            if(c?.Value == null) throw new InvalidDataException("Limit ne peut être null");
+            var limit = (int)c.Value;
             selectExpression.Limit = limit;
             return source;
         }

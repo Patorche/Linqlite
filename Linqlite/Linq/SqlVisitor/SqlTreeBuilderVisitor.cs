@@ -2,6 +2,7 @@
 using Linqlite.Mapping;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -45,38 +46,7 @@ namespace Linqlite.Linq.SqlVisitor
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            // Méthodes terminales avec prédicat
-           /* if (HasPredicateOverload(node.Method.Name, node.Arguments.Count))
-            {
-                var visitedSource = Visit(node.Arguments[0]);
-                System.Diagnostics.Debug.WriteLine(visitedSource.Type.Name);
-                var predicate = (LambdaExpression)StripQuotes(node.Arguments[1]);
-                var elementType = predicate.Parameters[0].Type;
-
-                // Expression<Func<T,bool>>
-                var funcType = typeof(Func<,>).MakeGenericType(elementType, typeof(bool));
-                var typedPredicate = Expression.Lambda(funcType,predicate.Body, predicate.Parameters);
-
-                // Where(source, predicate)
-                var whereCall = Expression.Call(
-                    typeof(Queryable),
-                    "Where",
-                    new[] { elementType },
-                    visitedSource,
-                    typedPredicate
-                );
-
-                // Single(source) ou First(source), etc.
-                return Expression.Call(
-                    typeof(Queryable),
-                    node.Method.Name,
-                    new[] { elementType },
-                    whereCall
-                );
-            }
-           */
-
-
+  
             if (_methodBuilders.TryGetValue(node.Method.Name, out var handler))
                 return handler.Handle(node, this);
 
@@ -153,11 +123,10 @@ namespace Linqlite.Linq.SqlVisitor
                 return new SqlParameterExpression(value, node.Type);
             }
 
-            Type projType = _sqlSelect.Projection.Type;
+            Type projType = GetSelectSource()?.Projection?.Type ?? throw new UnreachableException("Un erreur a été rencontrée lors du parcours de l'arbre : _sqlSelect est null");
             if(memberDeclaringType == projType)
             {
-                int i = 0 ;
-                if (_sqlSelect.Projection is SqlMemberProjectionExpression proj)
+                if (_sqlSelect?.Projection is SqlMemberProjectionExpression proj)
                 {
                     if (proj.Columns.TryGetValue(node.Member, out var exp))
                     {
@@ -166,10 +135,7 @@ namespace Linqlite.Linq.SqlVisitor
                 }
             }
 
-           
-
             return base.VisitMember(node);
-            //throw new InvalidOperationException("Member does not match any SQL source.");
         }
 
         private bool IsMappedEntity(Type type)
@@ -180,7 +146,7 @@ namespace Linqlite.Linq.SqlVisitor
 
         protected override Expression VisitParameter(ParameterExpression node)
         {
-            return _sqlSource;
+            return _sqlSource ?? throw new UnreachableException("Un erreur a été rencontrée lors du parcours de l'arbre : _sqlSource est null");
         }
 
 
@@ -189,22 +155,23 @@ namespace Linqlite.Linq.SqlVisitor
             if (node.Value is IQueryable q) 
             { 
                 var entityType = q.ElementType; 
-                var tableName = EntityMap.Get(entityType).TableName; 
+                var map = EntityMap.Get(entityType) ?? throw new UnreachableException("EnityMap est null");
+                var tableName = map.TableName; 
                 var alias = GetNextAlias(); 
                 return new SqlTableExpression(tableName, alias, entityType); 
             }
-            //return base.VisitConstant(node);
+            
 
-            return new SqlConstantExpression(node.Value, node.Type);
+            return new SqlConstantExpression(node.Value ?? DBNull.Value, node.Type);
               
         }
 
-        private SqlExpression? CreateSelectForTable(Type elementType)
+        /*private SqlExpression? CreateSelectForTable(Type elementType)
         {
             var map = EntityMap.Get(elementType);
             SqlTableExpression table = new SqlTableExpression(map.TableName, GetNextAlias(), elementType);
             return new SqlSelectExpression(elementType) { From = table };
-        }
+        }*/
 
         protected override Expression VisitUnary(UnaryExpression node)
         {
@@ -272,17 +239,22 @@ namespace Linqlite.Linq.SqlVisitor
 
         private string GetColumnName(Type type, MemberExpression expression)
         {
-              // récupération du path 
-              string path = "";
-              Expression exp = expression;
-              while (exp is MemberExpression m)
-              {
-                  path = m.Member.Name + (string.IsNullOrEmpty(path) ? "" : ".") + path;
-                  if (IsAnonymousType(m.Expression.Type) || IsTable(m.Expression.Type))
-                      break;
-                  exp = m.Expression;
-              }
-              return EntityMap.Get(type)?.Column(path);
+            // récupération du path 
+            string path = "";
+            Expression? exp = expression;
+            while (exp is MemberExpression m)
+            {
+                path = m.Member.Name + (string.IsNullOrEmpty(path) ? "" : ".") + path;
+                if (m.Expression != null && (IsAnonymousType(m.Expression.Type) || IsTable(m.Expression.Type)))
+                    break;
+                exp = m?.Expression;
+            }
+            var map = EntityMap.Get(type);
+            if (map == null)
+            {
+                return ""; 
+            }
+            return map.Column(path);
             
         }
 
@@ -291,7 +263,7 @@ namespace Linqlite.Linq.SqlVisitor
             return $"t{_aliasNumber++}";
         }
 
-        internal void SetCurrentSource(SqlExpression join)
+        internal void SetCurrentSource(SqlExpression? join)
         {
             _sqlSource = join;
         }
@@ -305,11 +277,12 @@ namespace Linqlite.Linq.SqlVisitor
 
         private bool IsTable(Type type)
         {
-            if (EntityMap.Get(type) == null || !EntityMap.Get(type).IsFromTable) return false;
+            var map = EntityMap.Get(type);
+            if (map == null || !map.IsFromTable) return false;
             return true;
         }
 
-        internal SqlExpression GetCurrentSource()
+        internal SqlExpression? GetCurrentSource()
         {
             return _sqlSource;
         }
@@ -319,7 +292,7 @@ namespace Linqlite.Linq.SqlVisitor
             _sqlSelect = selectExpression;
         }
 
-        internal SqlSelectExpression GetSelectSource()
+        internal SqlSelectExpression? GetSelectSource()
         {
             return _sqlSelect;
         }
@@ -332,7 +305,7 @@ namespace Linqlite.Linq.SqlVisitor
         private static Expression GetRootExpression(Expression expr)
         {
             while (expr is MemberExpression me)
-                expr = me.Expression;
+                expr = me.Expression ?? throw new UnreachableException("Expression null.");
 
             return expr;
         }
@@ -355,17 +328,17 @@ namespace Linqlite.Linq.SqlVisitor
         {
             // On remonte jusqu'à la racine
             var stack = new Stack<MemberExpression>();
-            Expression expr = node;
+            Expression? expr = node;
 
             while (expr is MemberExpression me)
             {
                 stack.Push(me);
-                expr = me.Expression;
+                expr = me?.Expression;
             }
 
             // expr est maintenant un ConstantExpression
-            var constant = (ConstantExpression)expr;
-            object? value = constant.Value;
+            var constant = expr as ConstantExpression;
+            object? value = constant?.Value;
 
             // On applique chaque MemberInfo dans l'ordre
             while (stack.Count > 0)

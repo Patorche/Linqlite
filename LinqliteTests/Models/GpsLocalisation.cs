@@ -14,32 +14,25 @@ namespace Linqlite.Models
     {
         private double? _latitude;
         private double? _longitude;
-        private string _city;
-        private string _country;
+        private string _city = "";
+        private string _country = "";
 
-        public Photo Parent { get; set; }
+        public Photo? Parent { get; set; }
 
 
         [Column("latitude")]
         public double? Latitude
         {
             get => _latitude;
-            set
-            {
-                if (SetProperty(ref _latitude, value) && Parent != null) ;
-                // UpdateMappedProperty(Parent,value, nameof(Latitude));
-            }
+            set => SetProperty(ref _latitude, value);
+
         }
 
         [Column("longitude")]
         public double? Longitude
         {
             get => _longitude;
-            set
-            {
-                if (SetProperty(ref _longitude, value) && Parent != null) ;
-                //  UpdateMappedProperty(Parent, value, nameof(Longitude));
-            }
+            set => SetProperty(ref _longitude, value);
         }
 
 
@@ -47,22 +40,14 @@ namespace Linqlite.Models
         public string City
         {
             get => _city;
-            set
-            {
-                if (SetProperty(ref _city, value) && Parent != null) ;
-                //UpdateMappedProperty(Parent, value, nameof(City));
-            }
+            set => SetProperty(ref _city, value); 
         }
 
         [Column("country")]
         public string Country
         {
             get => _country;
-            set
-            {
-                if (SetProperty(ref _country, value) && Parent != null) ;
-                //UpdateMappedProperty(Parent, value, nameof(Country));
-            }
+            set => SetProperty(ref _country, value);
         }
 
     }

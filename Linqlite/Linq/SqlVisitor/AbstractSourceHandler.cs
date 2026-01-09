@@ -2,6 +2,7 @@
 using Linqlite.Mapping;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
@@ -21,7 +22,7 @@ namespace Linqlite.Linq.SqlVisitor
                     return HandleNewProjection(nex, builder);
 
                 default:
-                    throw new NotSupportedException($"Unsupported select expression: {body.NodeType}");
+                    throw new NotSupportedException($"Expression select non supportée: {body.NodeType}");
             }
         }
 
@@ -43,7 +44,7 @@ namespace Linqlite.Linq.SqlVisitor
         }
         private List<SqlColumnExpression> GetFullProjection(Type type, string alias)
         {
-            var map = EntityMap.Get(type);
+            var map = EntityMap.Get(type) ?? throw new InvalidDataException("Entité null retournée");
             var members = new List<SqlColumnExpression>();
             foreach (var col in map.Columns)
             {
@@ -64,14 +65,19 @@ namespace Linqlite.Linq.SqlVisitor
 
         private SqlMemberProjectionExpression HandleNewProjection(NewExpression nex, SqlTreeBuilderVisitor builder)
         {
+            if (nex == null)
+                throw new UnreachableException("Tentative d'ajout d'une projection null !");
+
             var columns = nex.Arguments.Select(arg => (SqlExpression)builder.Visit(arg)).ToList();
 
             var members = new Dictionary<MemberInfo, SqlExpression>();
             for (int i = 0; i < nex.Arguments.Count; i++)
             {
-                var member = nex.Members[i];
+                var member = nex.Members?[i];
                 var argument = nex.Arguments[i];
-                var sqlExpr = (SqlExpression)builder.Visit(argument);
+                var sqlExpr = builder.Visit(argument) as SqlExpression;
+                if (member == null || sqlExpr == null)
+                    throw new UnreachableException("Tentative d'ajout d'une projection null !");
                 members.Add(member, sqlExpr);
             }
 

@@ -12,16 +12,15 @@ namespace Linqlite.Mapping
     public class EntityMap
     {
         private static ConcurrentDictionary<Type, EntityMap> EntityMaps = new();
-        private Dictionary<string, EntityPropertyInfo> _columnLookup;
 
         public List<EntityPropertyInfo> Columns;
         public string TableName { get; }
         public bool IsFromTable { get => !string.IsNullOrWhiteSpace(TableName); }
-        public List<UniqueGroup> UniqueGroups;
+        public List<IUniqueConstraint> UniqueConstraints;
         private EntityMap(Type type) 
         { 
             TableName = GetTablename(type);
-            Columns = MappingBuilder.BuildMap(type, out UniqueGroups);
+            Columns = MappingBuilder.BuildMap(type, out UniqueConstraints);
         }
 
         public string Column(string propertyNamePath)
@@ -35,7 +34,10 @@ namespace Linqlite.Mapping
 
             if (props.Length > 1)
             {
-                return EntityMap.Get(e.PropertyType).Column(string.Join('.', string.Join('.', props.TakeLast(props.Length - 1))));
+                var map = EntityMap.Get(e.PropertyType);
+                if (map == null)
+                    return "";
+                return map.Column(string.Join('.', string.Join('.', props.TakeLast(props.Length - 1))));
             }
             return e.ColumnName;
         }
@@ -43,9 +45,6 @@ namespace Linqlite.Mapping
 
         private string GetTablename(Type type) 
         {
-            string tablename = "";
-            //List<Attribute> attributes = [.. type.GetCustomAttributes()];
-            //var tableAttr = type.GetCustomAttribute<TableAttribute>(); return tableAttr?.TableName?.ToUpper() ?? type.Name.ToUpper();
             var tableAttr = type.GetCustomAttribute<TableAttribute>();
             if (tableAttr != null) 
             { 
@@ -53,7 +52,8 @@ namespace Linqlite.Mapping
             }
             return "";
         }
-        public static EntityMap Get(Type type)
+
+        public static EntityMap? Get(Type type)
         {
             if (EntityMaps.TryGetValue(type, out var map)) 
                 return map;
@@ -67,6 +67,16 @@ namespace Linqlite.Mapping
             return map;
         }
 
+        public IUniqueConstraint? GetUpsertKey()
+        {
+            IUniqueConstraint? constraint = UniqueConstraints.SingleOrDefault(u => u.IsUpsertKey);
+            return constraint;
+        }
+        public EntityPropertyInfo GetPrimaryKey()
+        {
+            return Columns.Single(c => c.IsPrimaryKey);
+        }
+
         internal string Projection(string alias)
         {
             List<string> cols = new List<string>();
@@ -78,7 +88,9 @@ namespace Linqlite.Mapping
                 }
                 else
                 {
-                    cols.AddRange(EntityMap.Get(col.PropertyType).Projection(alias));
+                    var map = EntityMap.Get(col.PropertyType);
+                    if(map != null)
+                        cols.AddRange(map.Projection(alias));
                 }
             }
 

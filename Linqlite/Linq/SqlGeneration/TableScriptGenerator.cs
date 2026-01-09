@@ -14,18 +14,18 @@ namespace Linqlite.Linq.SqlGeneration
         private StringBuilder _sb = new();
         private StringBuilder fk = new();
         private StringBuilder constraints = new();
-        private Type _type;
+        private Type? _type;
         private List<KeyValuePair<string, ConflictAction>> _uniques = new();
 
         public List<Type> ForeignTables { get; private set; } = new();
-        public Type EntityType => _type;
+        public Type? EntityType => _type;
         public StringBuilder Script => _sb;
         
         
         public void Build(Type type)
         {
             _type = type;
-            var map = EntityMap.Get(type);
+            var map = EntityMap.Get(type) ?? throw new InvalidDataException("Entité null retournée");
             bool hasColumn = false;
 
             _sb.Append($"CREATE TABLE \"{map.TableName}\" (").AppendLine();
@@ -48,39 +48,20 @@ namespace Linqlite.Linq.SqlGeneration
             {
                 _sb.Append(',').AppendLine().Append(fk);
             }
-            if(_uniques.Count > 0)
+
+
+            for(int i = 0; i < map.UniqueConstraints.Count; i++)
             {
                 _sb.Append(',').AppendLine();
-                for (int i = 0; i< _uniques.Count ; i++)
-                {
-                    if (_uniques[i].Value != ConflictAction.None)
-                    {
-
-                        if (i > 0)
-                            _sb.Append(",").AppendLine();
-                        var conflict = GetOnConflict(_uniques[i].Value);
-                        _sb.Append('\t').Append($"UNIQUE(\"{_uniques[i].Key}\") ON CONFLICT {conflict}");
-                    }
-                }
+                IUniqueConstraint c = map.UniqueConstraints[i];
+                if(c.OnConflict == ConflictAction.None)
+                    continue;
+                var conflict = GetOnConflict(c.OnConflict);
+                var cols = string.Join(", ", c.Columns.Select(s => $"\"{s}\""));
+                _sb.Append('\t').Append($"UNIQUE({cols}) ON CONFLICT {conflict}");
             }
 
-            if (map.UniqueGroups != null && map.UniqueGroups.Count > 0)
-            {
-                _sb.Append(',').AppendLine();
-                for(int i = 0;i< map.UniqueGroups.Count ; i++)
-                {
-                    if (i > 0)
-                        _sb.Append(",").AppendLine();
-                    
-                    if (map.UniqueGroups[i].OnConflict != ConflictAction.None)
-                    {
-                        var conflict = GetOnConflict(map.UniqueGroups[i].OnConflict);
-                        var cols = string.Join(", ", map.UniqueGroups[i].Columns.Select(s => $"\"{s}\""));
-                        _sb.Append('\t').Append($"UNIQUE({cols}) ON CONFLICT {conflict}");
-                    }
 
-                }
-            }
             _sb.AppendLine().Append(");");
             
         }
@@ -121,7 +102,7 @@ namespace Linqlite.Linq.SqlGeneration
         private StringBuilder GenerateSubEntityColumns(Type type)
         {
             StringBuilder sb = new StringBuilder();
-            var map = EntityMap.Get(type);
+            var map = EntityMap.Get(type) ?? throw new InvalidDataException("Entité null retournée");
             bool hasCol = false;
             foreach (var column in map.Columns)
             {
@@ -198,6 +179,9 @@ namespace Linqlite.Linq.SqlGeneration
         private void GenerateForeignKey(EntityPropertyInfo column)
         {
             if (column.ForeignKey is null) return;
+            
+            var f = column.ForeignKey;
+            var map = EntityMap.Get(f.Value.Entity) ?? throw new InvalidDataException("Entité null retournée");
 
             if (fk.Length > 0)
             {
@@ -205,11 +189,11 @@ namespace Linqlite.Linq.SqlGeneration
                 fk.AppendLine();
             }
 
-            var f = column.ForeignKey;
+            
             ForeignTables.Add(f.Value.Entity);
             fk.Append('\t').Append("FOREIGN KEY ");
             fk.Append($"({column.ColumnName})");
-            fk.Append($" REFERENCES {EntityMap.Get(f.Value.Entity).TableName}({EntityMap.Get(f.Value.Entity).Column(f.Value.Key)})");
+            fk.Append($" REFERENCES {map.TableName}({map.Column(f.Value.Key)})");
             if (f.Value.CascadeDelete)
             {
                 fk.Append(" ON DELETE CASCADE");

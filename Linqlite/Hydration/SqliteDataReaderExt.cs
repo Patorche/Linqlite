@@ -3,6 +3,7 @@ using Linqlite.Sqlite;
 using Microsoft.Data.Sqlite;
 using System.Collections.Concurrent;
 using System.Data;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -58,13 +59,8 @@ namespace Linqlite.Hydration
             Type t = property.PropertyType;
             var o = EntityDynamicFactory.CreateInstance(t);
 
-            //Type genericType = typeof(SqliteOEntity<>).MakeGenericType(t);
-            //System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(genericType.TypeHandle);
-            //Dictionary<string, EntityPropertyInfo> cols = (Dictionary<string, EntityPropertyInfo>)genericType.GetProperty("Columns", BindingFlags.Public | BindingFlags.Static).GetValue(null);
-
-            
-
-            foreach (var column in EntityMap.Get(property.PropertyType).Columns)
+            var map = EntityMap.Get(property.PropertyType) ?? throw new UnreachableException("Tentative de construction d'une entité sur une calsle non mappée");
+            foreach (var column in map.Columns)
             {
                 column.PropertyInfo.SetValue(o, reader.GetValue(column));
             }

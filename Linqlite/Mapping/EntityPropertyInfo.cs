@@ -10,10 +10,9 @@ namespace Linqlite.Mapping
     {
         public string ColumnName { get; set; } = "";
         //public PropertyInfo[] PropertyPath { get; set; } = Array.Empty<PropertyInfo>();
-        public PropertyInfo PropertyInfo { get; set; } 
+        public required PropertyInfo PropertyInfo { get; set; } 
 
         public Type PropertyType => PropertyInfo.PropertyType;
-        public bool IsKey { get; set; }
         public bool IsPrimaryKey { get; internal set; }
         public bool IsAutoIncrement { get; internal set; }
         public (Type Entity, string Key, bool CascadeDelete)? ForeignKey { get; internal set; }

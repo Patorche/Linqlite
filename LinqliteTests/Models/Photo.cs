@@ -45,7 +45,7 @@ namespace Linqlite.Models
         public DateTime? TakenDate { get; set; } = DateTime.Now;
       
         [Column("folder")]
-        [UniqueGroup("fullpath", OnConflict = ConflictAction.Ignore)]
+        [UniqueGroup("fullpath", OnConflict = ConflictAction.Ignore, IsUpsertKey = true)]
         public string? Folder { get; set; } = string.Empty;
       
         [Column("width")]

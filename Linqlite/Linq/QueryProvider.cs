@@ -6,8 +6,10 @@ using Linqlite.Sqlite;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
+using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Text;
 
@@ -16,26 +18,23 @@ namespace Linqlite.Linq
     public class QueryProvider : IQueryProvider, IDisposable
     {
         private static readonly HashSet<string> _terminalOperators = Enum.GetNames(typeof(TerminalOperator)).ToHashSet();
-        public TrackingMode DefaultTrackingMode { get; set; } = TrackingMode.AutoUpdate;
         private List<IQueryableTableDefinition> _queries = new();
-
+        private readonly Dictionary<object, PropertyChangedEventHandler> _handlers = new();
         private string _connectionString = "";
         internal SqliteConnection? Connection = null;
-        public string DatabaseScript { get; private set; }
 
+        public TrackingMode DefaultTrackingMode { get; set; } = TrackingMode.AutoUpdate;
+            
+        public string? DatabaseScript { get; private set; }
         
-
         public string ConnectionString
         {
             get => _connectionString;
             private set => _connectionString = value;
         }
 
-
-
         public QueryProvider()
         {
-
         }
 
         public QueryProvider(string connectionString)
@@ -46,13 +45,15 @@ namespace Linqlite.Linq
 
         private void Connect()
         {
+            if (string.IsNullOrEmpty(ConnectionString)) return;
+
             SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_sqlite3());
             Connection = new SqliteConnection(@$"Data Source={ConnectionString}");
             Connection.Open();
             Optimize();
         }
 
-        private void Optimize()
+        public void Optimize()
         {
             using (var command = Connection?.CreateCommand())
             {
@@ -67,24 +68,20 @@ namespace Linqlite.Linq
 
         public IQueryable CreateQuery(Expression expression)
         {
-            /*  var elementType = expression.Type.GetGenericArguments()[0];
-              var tableType = typeof(QueryableTable<>).MakeGenericType(elementType);
-              return (IQueryable)Activator.CreateInstance(tableType, this, expression)!;
-            */
-
             if (expression.Type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IOrderedQueryable<>)))
             {
                 var elementType = expression.Type.GetGenericArguments()[0];
                 var orderedType = typeof(OrderedQueryableTable<>).MakeGenericType(elementType);
-                return (IQueryable)Activator.CreateInstance(orderedType, this, expression);
+                object? o = Activator.CreateInstance(orderedType, this, expression);
+                return o == null ? throw new InvalidOperationException("Echec lors de l'instancation de IQueryable") : (IQueryable)o;
             }
             else
             {
                 var elementType = expression.Type.GetGenericArguments()[0];
                 var normalType = typeof(QueryableTable<>).MakeGenericType(elementType);
-                return (IQueryable)Activator.CreateInstance(normalType, this, expression);
+                object? o = Activator.CreateInstance(normalType, this, expression);
+                return o == null ? throw new InvalidOperationException("Echec lors de l'instancation de IQueryable") : (IQueryable)o;
             }
-
         }
 
         public IQueryable<TElement> CreateQuery<TElement>(Expression expression)
@@ -98,11 +95,14 @@ namespace Linqlite.Linq
         }
 
 
-
-
-        public long Insert<T>(T entity) where T : SqliteEntity, new()
+        public long Insert<T>(T entity, TrackingMode mode) where T : SqliteEntity, new()
         {
-            return SqlQuery<T>.Insert(entity, this);
+            return SqlQuery<T>.InsertOrGetId(entity, this, mode);
+        }
+
+        public long InsertOrGetId<T>(T entity, TrackingMode mode) where T : SqliteEntity, new()
+        {
+            return SqlQuery<T>.InsertOrGetId(entity, this, mode);
         }
 
         public void Delete<T>(T entity) where T : SqliteEntity, new()
@@ -110,66 +110,73 @@ namespace Linqlite.Linq
             SqlQuery<T>.Delete(entity, this);
         }
 
-        public void Update<T>(T entity, string property) where T : SqliteEntity, new()
+        public void Update<T>(T entity, string? property) where T : SqliteEntity, new()
         {
             SqlQuery<T>.Update(entity, property, this);
         }
 
-
-       
-
-        public object? Execute(Expression expression)
+        public void Update<T>(T entity) where T : SqliteEntity, new()
         {
-            // 1. opérateur terminal ?
-            if (expression is MethodCallExpression mce && IsTerminalOperator(mce.Method.Name))
-            {
-                return ExecuteTerminal(mce);
-            }
-
-            // 2. Sinon, exécution normale (ToList, enumeration, etc.)
-            return ExecuteSequence(expression);
+            SqlQuery<T>.Update(entity, this);
         }
 
 
-        private object? ExecuteSequence(Expression expression)
+        public object? Execute(Expression expression)
         {
-            TrackingMode? trackingMode;
-            //var sql = Translate(expression, out trackingMode);
-            //SqlExpressionVisitor visitor = new SqlExpressionVisitor();
+            var termexp = new TerminalVisitor().Visit(expression);
+
+            var table = FindRootTable(expression);
+            var mode = table?.TrackingModeOverride ?? DefaultTrackingMode;
+            
+
+            // 1. opérateur terminal ?
+            if (termexp is MethodCallExpression mce && IsTerminalOperatorWithoutPredicate(mce))
+            {
+                return ExecuteTerminal(mce, mode);
+            }
+
+            // 2. Sinon, exécution normale (ToList, enumeration, etc.)
+            return ExecuteSequence(termexp, mode);
+        }
+
+
+        private object? ExecuteSequence(Expression expression, TrackingMode mode)
+        {
             SqlTreeBuilderVisitor visitor = new SqlTreeBuilderVisitor();
             SqlExpression exp = visitor.Build(expression);
             SqlGenerator gen = new SqlGenerator();
             var sql = gen.Generate(exp);
-            //var sql = visitor.Translate(expression);
-            trackingMode = DefaultTrackingMode;//visitor.TrackingMode;
             var elementType = TypeSystem.GetElementType(expression.Type);
 
             var method = typeof(SqlQuery<>)
                 .MakeGenericType(elementType)
                 .GetMethod(nameof(SqlQuery<SqliteEntity>.Execute));
-            return method.Invoke(null, new object[] { sql, this, trackingMode, gen.Parameters });
+            return method?.Invoke(null, new object[] { sql, this, mode, gen.Parameters });
         }
 
-        private object? ExecuteTerminal(MethodCallExpression mce)
+        private object? ExecuteTerminal(MethodCallExpression mce, TrackingMode mode)
         {
             // La source de la requête (avant First/Single)
             var sourceExpression = mce.Arguments[0];
 
             // Exécuter la requête source
-            var sequence = ExecuteSequence(sourceExpression);
+            var sequence = ExecuteSequence(sourceExpression, mode);
 
             // Convertir en IEnumerable<T>
             var elementType = TypeSystem.GetElementType(sourceExpression.Type);
-            var castMethod = typeof(Enumerable).GetMethod(nameof(Enumerable.Cast)).MakeGenericMethod(elementType);
+            var method = typeof(Enumerable).GetMethod(nameof(Enumerable.Cast));
+            var castMethod = method?.MakeGenericMethod(elementType);
 
-            var casted = castMethod.Invoke(null, new[] { sequence });
+            var casted = castMethod?.Invoke(null, new[] { sequence });
 
 
             return EnumerableTerminalOperator(elementType, casted, mce.Method.Name);
         }
 
-        private object EnumerableTerminalOperator(Type elementType, object casted, string op)
+        private static object? EnumerableTerminalOperator(Type elementType, object? casted, string op)
         {
+            if (casted is null) throw new InvalidOperationException($"L'opérateur terminal '{op}' ne peut être appliqué à une séquence null.");
+
             var method = typeof(Enumerable)
                 .GetMethods()
                 .First(m => m.Name == op && m.GetParameters().Length == 1)
@@ -178,24 +185,47 @@ namespace Linqlite.Linq
             return method.Invoke(null, new[] { casted });
         }
 
-        private bool IsTerminalOperator(string op)
+        private static bool IsTerminalOperatorWithoutPredicate(MethodCallExpression op)
         {
-            return _terminalOperators.Contains(op);
+            
+            if(!_terminalOperators.Contains(op.Method.Name)) return false;
+            if(op.Arguments.Count>1) return false;
+            return true;
         }
 
-
-        private string Translate(Expression expression, out TrackingMode? trackingMode)
+        public TResult Execute<TResult>(Expression expression)
         {
-            trackingMode = null;
-            return "";
-            //SqlExpressionVisitor visitor = new SqlExpressionVisitor();
-            //trackingMode = visitor.TrackingMode;
-            //return visitor.Translate(expression);
+            var result = Execute(expression);
+            return result == null
+                ? throw new UnreachableException("Une  erreur est survenue lors de l'analyse de l'arbre d'expresssion.")
+                : (TResult)result;
         }
 
-        public TResult? Execute<TResult>(Expression expression)
+        internal IQueryableTableDefinition? FindRootTable(Expression expression)
         {
-            return (TResult)Execute(expression);
+            while (true)
+            {
+                switch (expression)
+                {
+                    case ConstantExpression c:
+                        return c.Value as IQueryableTableDefinition;
+
+                    case MethodCallExpression m:
+                        expression = m.Arguments.FirstOrDefault() ?? m.Object!;
+                        continue;
+
+                    case UnaryExpression u:
+                        expression = u.Operand;
+                        continue;
+
+                    case MemberExpression me:
+                        expression = me.Expression!;
+                        continue;
+
+                    default:
+                        return null;
+                }
+            }
         }
 
         public void Attach(SqliteEntity entity, TrackingMode? mode = TrackingMode.AutoUpdate)
@@ -207,14 +237,23 @@ namespace Linqlite.Linq
                     break;
 
                 case TrackingMode.AutoUpdate:
-                    entity.PropertyChanged += (s, e) =>
-                    {
-                        Update(entity, e.PropertyName);
-                    };
+                    if (_handlers.ContainsKey(entity)) return;
+                    PropertyChangedEventHandler handler = (s, e) => { Update(entity, e?.PropertyName); };
+                    _handlers[entity] = handler;
+                    entity.PropertyChanged += handler;
                     break;
 
                 case TrackingMode.Manual:
                     break;
+            }
+        }
+
+        public void Detach(SqliteEntity entity)
+        {
+            if (_handlers.TryGetValue(entity, out var handler))
+            { 
+                entity.PropertyChanged -= handler; 
+                _handlers.Remove(entity); 
             }
         }
 
@@ -279,9 +318,10 @@ namespace Linqlite.Linq
 
         private static List<TableScriptGenerator> SortByDependencies(List<TableScriptGenerator> tables)
         {
+            if(tables == null || tables.Count == 0) return new List<TableScriptGenerator>();
             // 1. Construire le graphe
             var graph = tables.ToDictionary(
-                t => t.EntityType,
+                t => t.EntityType ?? throw new InvalidDataException("EntityType est null."),
                 t => t.ForeignTables.ToList() // copie pour manipulation
             );
 
@@ -314,17 +354,18 @@ namespace Linqlite.Linq
                 throw new InvalidOperationException("Cycle de dépendances détecté entre tables.");
 
             // 5. Retourner les TableScriptGenerator dans l'ordre trié
-            return sorted
-                .Select(type => tables.First(t => t.EntityType == type))
-                .ToList();
+            return [.. sorted.Select(type => tables.First(t => t.EntityType == type))];
         }
-
-
     }
 
     enum TerminalOperator
     {
-        First, FirstOrDefault, Single, SingleOrDefault, Any, Count
+        First,
+        FirstOrDefault,
+        Single,
+        SingleOrDefault,
+        Any,
+        Count
     }
 
     public enum TrackingMode 

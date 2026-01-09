@@ -15,7 +15,7 @@ namespace LinqliteTests
         public void ConnectionTest1()
         {
             var provider = new QueryProvider(connectionString);
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = new QueryableTable<Photo>(provider, TrackingMode.Manual);
 
             var query = photos.Where(p => p.Id >0).ToList();
 
@@ -51,7 +51,6 @@ namespace LinqliteTests
                 System.Diagnostics.Debug.WriteLine(p.Author);
             }
 
-            int i = 0;
         }
 
 
@@ -72,25 +71,23 @@ namespace LinqliteTests
             Assert.Equal("SELECT t0.id, t0.filename, t0.takendate, t0.folder, t0.width, t0.height, t0.type, t0.author, t0.camera, t0.make, t0.latitude, t0.longitude, t0.city, t0.country, t0.iso, t0.aperture, t0.shutterspeed, t0.focal, t0.rate, t0.thumbwidth, t0.thumbheight, t0.orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON (t0.id = t1.photo_id) WHERE ((t1.lib_id = @v0) AND (t1.deleted = TRUE)) ORDER BY t0.takendate ASC",
                 res);
             List<Photo> list = query.ToList();
-            int i = 0;
         }
 
 
         [Fact]
-        public void TestDelete()
+        public void TestInsertDelete()
         {
             var provider = new QueryProvider(connectionString);
             var photos = new QueryableTable<Photo>(provider);
 
             Photo photo = new Photo()
             {
-                Id = 16091,
                 Author = "Patorche",
                 CameraName = "K100",
                 Make = "Pentax",
-                Filename = "IMG001.DNG",
+                Filename = "IMG00SHY2.DNG",
                 Focal = "100",
-                Folder = @"c:\Images",
+                Folder = @"c:\Imagess",
                 Height = 100,
                 Width = 100,
                 IsNew = true,
@@ -104,17 +101,13 @@ namespace LinqliteTests
                 Type = "PNG"
             };
 
-            photos.Insert(photo);
+            photos.InsertOrGetId(photo);
             photos.Delete(photo);
-            //var result = photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == catalogue.Id && !x.c.IsDeleted).OrderBy(x => x.p.TakenDate).Select(x => x.p).ToList();
-            //string res = SqlFor(photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == 1 && !x.c.IsDeleted).OrderBy(x => x.p.TakenDate).Select(x => x.p));
-            //Assert.Equal("SELECT t0.id, t0.filename, t0.takendate, t0.folder, t0.width, t0.height, t0.type, t0.author, t0.camera, t0.make, t0.latitude, t0.longitude, t0.city, t0.country, t0.iso, t0.aperture, t0.shutterspeed, t0.focal, t0.rate, t0.thumbwidth, t0.thumbheight, t0.orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON t0.id = t1.photo_id WHERE ((t1.lib_id = 1) AND t1.deleted) ORDER BY t0.takendate",
-                //res);
-            int i = 0;
+
         }
 
         [Fact]
-        public void TestInsert()
+        public void TestFullUpdate()
         {
             var provider = new QueryProvider(connectionString);
             var photos = new QueryableTable<Photo>(provider);
@@ -124,9 +117,9 @@ namespace LinqliteTests
                 Author = "Patorche",
                 CameraName = "K100",
                 Make = "Pentax",
-                Filename = "IMG001.DNG",
+                Filename = "IMG00SHYdsf2SS.DNG",
                 Focal = "100",
-                Folder = @"c:\Images",
+                Folder = @"c:\Imagess",
                 Height = 100,
                 Width = 100,
                 IsNew = true,
@@ -140,25 +133,61 @@ namespace LinqliteTests
                 Type = "PNG"
             };
 
-            long res = photos.Insert(photo);
+            photos.InsertOrGetId(photo);
 
-            int i = 0;
+            
+            var photomodified = new Photo() 
+            { 
+                Id = photo.Id, 
+                Filename = photo.Filename, 
+                Make=photo.Make,
+                Author = "MODIFIED",
+                CameraName= photo.CameraName,
+                CameraSetting = photo.CameraSetting,
+                Focal= photo.Focal,
+                Folder = photo.Folder,
+                Height = photo.Height,
+                Width = photo.Width,
+                IsNew = true,
+                Orientation = 7,
+                Rate = 2,
+                TakenDate = new DateTime(2025, 12, 31),
+                ThumbHeight = 100,
+                ThumbWidth = 100,
+                Localisation = new GpsLocalisation() { City = "Paris", Country = "France", Latitude = 44.0, Longitude = 44.0 },
+                Type = "PNG"
+
+            };
+            photos.Update(photomodified);
+            var p = photos.Single(p => p.Id == photo.Id);
+            photos.Delete(photo);
         }
 
+
         [Fact]
-        public void TestUpdate()
+        public void TestUpdateTracking()
         {
             var provider = new QueryProvider(connectionString);
             var photos = new QueryableTable<Photo>(provider);
 
-            var query = photos.Where(p => p.Filename == "IMG-20200819-WA0004.jpg");
-            var sql = SqlFor(query);
-            var ps = query.ToList();
+            var p = photos.Single(p => p.Filename == "IMG-20200819-WA0004.jpg");
 
-            ps[0].Rate = 3;
-            //photos.Update(photo, nameof(Photo.Localisation));
+            p.Rate++;
 
-            int i = 0;
+            var q = photos.Single(p => p.Filename == "IMG-20200819-WA0004.jpg");
+            Assert.Equal(p.Rate, q.Rate);
+        }
+
+        [Fact]
+        public void TestPhotos()
+        {
+            var provider = new QueryProvider(connectionString);
+            var photos = new QueryableTable<Photo>();
+            var photocatalogues = new QueryableTable<PhotoCatalogue>();
+            provider.Register(photocatalogues);
+            provider.Register(photos);
+            Catalogue catalogue = new Catalogue() { Id = 7 };
+            photos.Join(photocatalogues, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == catalogue.Id && !x.c.IsDeleted).OrderByDescending(x => x.p.TakenDate).Select(x => x.p);
         }
 
     }

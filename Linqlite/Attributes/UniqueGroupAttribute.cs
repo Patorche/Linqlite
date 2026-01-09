@@ -8,6 +8,7 @@ namespace Linqlite.Attributes
     public sealed class UniqueGroupAttribute : Attribute
     {
         public string GroupName { get; }
+        public bool IsUpsertKey { get; set; } = false;
         public ConflictAction OnConflict { get; set; } = ConflictAction.None;
 
         public UniqueGroupAttribute(string groupName)

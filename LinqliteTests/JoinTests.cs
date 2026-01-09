@@ -10,7 +10,7 @@ namespace LinqliteTests
         [Fact]
         public void JoinSimple()
         {
-            var provider = new QueryProvider();
+            var provider = new LinqLiteProvider();
             var photos = provider.Table<Photo>();
             var photocatalogue = provider.Table<PhotoCatalogue>();
 

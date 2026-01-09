@@ -8,10 +8,10 @@ namespace Linqlite.Linq.SqlGeneration
 {
     internal class SchemaManager
     {
-        QueryProvider _provider;
+        LinqLiteProvider _provider;
         public string DatabaseScript = "";
 
-        public SchemaManager(QueryProvider queryProvider)
+        public SchemaManager(LinqLiteProvider queryProvider)
         {
             _provider = queryProvider;
         }

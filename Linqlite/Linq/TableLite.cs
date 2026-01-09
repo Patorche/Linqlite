@@ -48,7 +48,7 @@ namespace Linqlite.Linq
         internal void AttachEntity(T entity) 
         { 
             if (entity is SqliteEntity obj) 
-                ((QueryProvider)Provider).Attach(obj, TrackingModeOverride); 
+                ((LinqLiteProvider)Provider).Attach(obj, TrackingModeOverride); 
         }
 
         public IEnumerator<T> GetEnumerator()

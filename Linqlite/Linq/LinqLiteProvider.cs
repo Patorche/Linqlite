@@ -18,7 +18,7 @@ using System.Text;
 
 namespace Linqlite.Linq
 {
-    public class QueryProvider : IQueryProvider, IDisposable
+    public class LinqLiteProvider : IQueryProvider, IDisposable
     {
         private static readonly HashSet<string> _terminalOperators = Enum.GetNames(typeof(TerminalOperator)).ToHashSet();
         private List<IQueryableTableDefinition> _queries = new();
@@ -38,12 +38,12 @@ namespace Linqlite.Linq
             private set => _dbFilename = value;
         }
 
-        public QueryProvider()
+        public LinqLiteProvider()
         {
             _schemaManager = new SchemaManager(this);
         }
 
-        public QueryProvider(string dbFilename)
+        public LinqLiteProvider(string dbFilename)
         {
             DbFileName = dbFilename;
             _schemaManager = new SchemaManager(this);

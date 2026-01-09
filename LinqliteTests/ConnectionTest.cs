@@ -14,7 +14,7 @@ namespace LinqliteTests
         [Fact]
         public void ConnectionTest1()
         {
-            var provider = new QueryProvider(connectionString);
+            var provider = new LinqLiteProvider(connectionString);
             var photos = provider.Table<Photo>(TrackingMode.Manual);
 
             var query = photos.Where(p => p.Id >0).ToList();
@@ -29,7 +29,7 @@ namespace LinqliteTests
         [Fact]
         public async Task TestAvecNot()
         {
-            var provider = new QueryProvider(connectionString);
+            var provider = new LinqLiteProvider(connectionString);
             var photos = provider.Table<Photo>();
             var photoCatalogue = provider.Table<PhotoCatalogue>();
 
@@ -57,7 +57,7 @@ namespace LinqliteTests
         [Fact]
         public void TestAvecValeurBool()
         {
-            var provider = new QueryProvider(connectionString);
+            var provider = new LinqLiteProvider(connectionString);
             var photos = provider.Table<Photo>();
             var photoCatalogue = provider.Table<PhotoCatalogue>();
 
@@ -77,7 +77,7 @@ namespace LinqliteTests
         [Fact]
         public void TestInsertDelete()
         {
-            var provider = new QueryProvider(connectionString);
+            var provider = new LinqLiteProvider(connectionString);
             var photos = provider.Table<Photo>();
 
             Photo photo = new Photo()
@@ -109,7 +109,7 @@ namespace LinqliteTests
         [Fact]
         public void TestFullUpdate()
         {
-            var provider = new QueryProvider(connectionString);
+            var provider = new LinqLiteProvider(connectionString);
             var photos = provider.Table<Photo>();
 
             Photo photo = new Photo()
@@ -167,7 +167,7 @@ namespace LinqliteTests
         [Fact]
         public void TestUpdateTracking()
         {
-            var provider = new QueryProvider(connectionString);
+            var provider = new LinqLiteProvider(connectionString);
             var photos = provider.Table<Photo>();
 
             var p = photos.Single(p => p.Filename == "IMG-20200819-WA0004.jpg");
@@ -181,7 +181,7 @@ namespace LinqliteTests
         [Fact]
         public void TestPhotos()
         {
-            var provider = new QueryProvider(connectionString);
+            var provider = new LinqLiteProvider(connectionString);
             var photos = provider.Table<Photo>();
             var photocatalogues = provider.Table<PhotoCatalogue>();
             Catalogue catalogue = new Catalogue() { Id = 7 };

@@ -15,7 +15,7 @@ namespace LinqliteTests
         {
             //if(File.Exists("E:\\Dev\\Photolab.db\\test.db"))
             //    File.Delete("E:\\Dev\\Photolab.db\\test.db");
-            var provider = new QueryProvider(connectionString); // Piour valider le changement de fichier
+            var provider = new LinqLiteProvider(connectionString); // Piour valider le changement de fichier
             provider.Table<Photo>();
             provider.Table<PhotoCatalogue>();
             provider.Table<Catalogue>();

@@ -13,13 +13,13 @@ namespace LinqliteTests
         [Fact]
         public void TestScriptTable()
         {
-            if(File.Exists("E:\\Dev\\Photolab.db\\test2.db"))
-                File.Delete("E:\\Dev\\Photolab.db\\test2.db");
-            var provider = new QueryProvider(connectionString); // Piour valider le changement de fichier
-            provider.Register(new QueryableTable<Photo>());
-            provider.Register(new QueryableTable<PhotoCatalogue>());
-            provider.Register(new QueryableTable<Catalogue>());
-            provider.CreateDatabase("E:\\Dev\\Photolab.db\\test2.db");
+            //if(File.Exists("E:\\Dev\\Photolab.db\\test.db"))
+            //    File.Delete("E:\\Dev\\Photolab.db\\test.db");
+            var provider = new LinqLiteProvider(connectionString); // Piour valider le changement de fichier
+            provider.Table<Photo>();
+            provider.Table<PhotoCatalogue>();
+            provider.Table<Catalogue>();
+            provider.EnsureTablesCreated();
             provider.Disconnect();
             
         }

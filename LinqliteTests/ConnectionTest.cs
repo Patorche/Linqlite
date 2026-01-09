@@ -14,8 +14,8 @@ namespace LinqliteTests
         [Fact]
         public void ConnectionTest1()
         {
-            var provider = new QueryProvider(connectionString);
-            var photos = new QueryableTable<Photo>(provider, TrackingMode.Manual);
+            var provider = new LinqLiteProvider(connectionString);
+            var photos = provider.Table<Photo>(TrackingMode.Manual);
 
             var query = photos.Where(p => p.Id >0).ToList();
 
@@ -29,9 +29,9 @@ namespace LinqliteTests
         [Fact]
         public async Task TestAvecNot()
         {
-            var provider = new QueryProvider(connectionString);
-            var photos = new QueryableTable<Photo>(provider);
-            var photoCatalogue = new QueryableTable<PhotoCatalogue>(provider);
+            var provider = new LinqLiteProvider(connectionString);
+            var photos = provider.Table<Photo>();
+            var photoCatalogue = provider.Table<PhotoCatalogue>();
 
             Catalogue catalogue = new Catalogue() { Id = 2, Name = "Test" };
 
@@ -57,9 +57,9 @@ namespace LinqliteTests
         [Fact]
         public void TestAvecValeurBool()
         {
-            var provider = new QueryProvider(connectionString);
-            var photos = new QueryableTable<Photo>(provider);
-            var photoCatalogue = new QueryableTable<PhotoCatalogue>(provider);
+            var provider = new LinqLiteProvider(connectionString);
+            var photos = provider.Table<Photo>();
+            var photoCatalogue = provider.Table<PhotoCatalogue>();
 
             Catalogue catalogue = new Catalogue() { Id = 2, Name = "Test" };
 
@@ -77,8 +77,8 @@ namespace LinqliteTests
         [Fact]
         public void TestInsertDelete()
         {
-            var provider = new QueryProvider(connectionString);
-            var photos = new QueryableTable<Photo>(provider);
+            var provider = new LinqLiteProvider(connectionString);
+            var photos = provider.Table<Photo>();
 
             Photo photo = new Photo()
             {
@@ -109,8 +109,8 @@ namespace LinqliteTests
         [Fact]
         public void TestFullUpdate()
         {
-            var provider = new QueryProvider(connectionString);
-            var photos = new QueryableTable<Photo>(provider);
+            var provider = new LinqLiteProvider(connectionString);
+            var photos = provider.Table<Photo>();
 
             Photo photo = new Photo()
             {
@@ -167,8 +167,8 @@ namespace LinqliteTests
         [Fact]
         public void TestUpdateTracking()
         {
-            var provider = new QueryProvider(connectionString);
-            var photos = new QueryableTable<Photo>(provider);
+            var provider = new LinqLiteProvider(connectionString);
+            var photos = provider.Table<Photo>();
 
             var p = photos.Single(p => p.Filename == "IMG-20200819-WA0004.jpg");
 
@@ -181,11 +181,9 @@ namespace LinqliteTests
         [Fact]
         public void TestPhotos()
         {
-            var provider = new QueryProvider(connectionString);
-            var photos = new QueryableTable<Photo>();
-            var photocatalogues = new QueryableTable<PhotoCatalogue>();
-            provider.Register(photocatalogues);
-            provider.Register(photos);
+            var provider = new LinqLiteProvider(connectionString);
+            var photos = provider.Table<Photo>();
+            var photocatalogues = provider.Table<PhotoCatalogue>();
             Catalogue catalogue = new Catalogue() { Id = 7 };
             photos.Join(photocatalogues, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == catalogue.Id && !x.c.IsDeleted).OrderByDescending(x => x.p.TakenDate).Select(x => x.p);
         }

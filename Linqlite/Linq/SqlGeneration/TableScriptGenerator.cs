@@ -28,7 +28,7 @@ namespace Linqlite.Linq.SqlGeneration
             var map = EntityMap.Get(type) ?? throw new InvalidDataException("Entité null retournée");
             bool hasColumn = false;
 
-            _sb.Append($"CREATE TABLE \"{map.TableName}\" (").AppendLine();
+            _sb.Append($"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" (").AppendLine();
             foreach (var column in map.Columns) 
             { 
                 GenerateForeignKey(column);
@@ -121,7 +121,7 @@ namespace Linqlite.Linq.SqlGeneration
             return sb;
         }
 
-        private string GetSqlType(Type propertyType)
+        public static string GetSqlType(Type propertyType)
         {
             // Gestion des Nullable<T>
             var type = Nullable.GetUnderlyingType(propertyType) ?? propertyType;

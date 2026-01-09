@@ -1,16 +1,19 @@
-﻿using Linqlite.Linq.SqlExpressions;
+﻿using Linqlite.Hydration;
+using Linqlite.Linq.SqlExpressions;
 using Linqlite.Linq.SqlGeneration;
 using Linqlite.Linq.SqlVisitor;
 using Linqlite.Mapping;
 using Linqlite.Sqlite;
 using Microsoft.Data.Sqlite;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Linq.Expressions;
+using System.Reflection.Emit;
 using System.Text;
 
 namespace Linqlite.Linq
@@ -20,35 +23,39 @@ namespace Linqlite.Linq
         private static readonly HashSet<string> _terminalOperators = Enum.GetNames(typeof(TerminalOperator)).ToHashSet();
         private List<IQueryableTableDefinition> _queries = new();
         private readonly Dictionary<object, PropertyChangedEventHandler> _handlers = new();
-        private string _connectionString = "";
+        private string _dbFilename = "";
         internal SqliteConnection? Connection = null;
+        SchemaManager _schemaManager;
 
         public TrackingMode DefaultTrackingMode { get; set; } = TrackingMode.AutoUpdate;
-            
-        public string? DatabaseScript { get; private set; }
-        
-        public string ConnectionString
+
+        public string? DatabaseScript => _schemaManager?.DatabaseScript;
+
+
+        public string DbFileName
         {
-            get => _connectionString;
-            private set => _connectionString = value;
+            get => _dbFilename;
+            private set => _dbFilename = value;
         }
 
         public QueryProvider()
         {
+            _schemaManager = new SchemaManager(this);
         }
 
-        public QueryProvider(string connectionString)
+        public QueryProvider(string dbFilename)
         {
-            ConnectionString = connectionString;
+            DbFileName = dbFilename;
+            _schemaManager = new SchemaManager(this);
             Connect();
         }
 
         private void Connect()
         {
-            if (string.IsNullOrEmpty(ConnectionString)) return;
+            if (string.IsNullOrEmpty(DbFileName)) return;
 
             SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_sqlite3());
-            Connection = new SqliteConnection(@$"Data Source={ConnectionString}");
+            Connection = new SqliteConnection(@$"Data Source={DbFileName}");
             Connection.Open();
             Optimize();
         }
@@ -78,7 +85,7 @@ namespace Linqlite.Linq
             else
             {
                 var elementType = expression.Type.GetGenericArguments()[0];
-                var normalType = typeof(QueryableTable<>).MakeGenericType(elementType);
+                var normalType = typeof(TableLite<>).MakeGenericType(elementType);
                 object? o = Activator.CreateInstance(normalType, this, expression);
                 return o == null ? throw new InvalidOperationException("Echec lors de l'instancation de IQueryable") : (IQueryable)o;
             }
@@ -91,7 +98,7 @@ namespace Linqlite.Linq
                 return new OrderedQueryableTable<TElement>(this, expression);
             }
 
-            return new QueryableTable<TElement>(this, expression);
+            return new TableLite<TElement>(this, expression);
         }
 
 
@@ -257,50 +264,26 @@ namespace Linqlite.Linq
             }
         }
 
+        public IQueryable<T> Table<T>(TrackingMode trackingMode = TrackingMode.None) where T : SqliteEntity
+        { 
+            var table = new TableLite<T>(trackingMode);
+            Register(table); 
+            return table; 
+        }
+
         // Gestion des queryable pour génération  script SQl
-        public void Register<T>(QueryableTable<T> query) where T : SqliteEntity
+        private void Register<T>(TableLite<T> query) where T : SqliteEntity
         {
             query.Provider = this;
             _queries.Add(query);
         }
 
-        public void CreateDatabase(string filename = "")
+
+        public void EnsureTablesCreated()
         {
-            string cnx = string.IsNullOrEmpty(filename) ? ConnectionString : filename;
-            if (File.Exists(cnx))
-            {
-                throw new Exception($"Le fichier {cnx} existe déjà");
-            }
-
-            List<TableScriptGenerator> tablesScripts = new();
-            foreach (var query in _queries)
-            {
-                Type type = query.EntityType;
-                TableScriptGenerator scriptGen = new TableScriptGenerator();
-                scriptGen.Build(type);
-                tablesScripts.Add(scriptGen);
-            }
-
-            List<TableScriptGenerator> tables = SortByDependencies(tablesScripts);
-
-            StringBuilder sb = new StringBuilder();
-            foreach (var table in tables)
-            {
-                sb.Append(table.Script).AppendLine();
-            }
-            DatabaseScript = sb.ToString();
-
-           
-            Disconnect();
-            ConnectionString = filename;
-            Connect();
-
-            SqliteCommand cmdTables = new SqliteCommand();
-            cmdTables.Connection = Connection;
-            cmdTables.CommandText = DatabaseScript;
-            cmdTables.ExecuteNonQuery();
-
+            _schemaManager.EnsureTablesCreated(_queries);
         }
+
 
         public async void Dispose()
         {
@@ -316,46 +299,7 @@ namespace Linqlite.Linq
             }
         }
 
-        private static List<TableScriptGenerator> SortByDependencies(List<TableScriptGenerator> tables)
-        {
-            if(tables == null || tables.Count == 0) return new List<TableScriptGenerator>();
-            // 1. Construire le graphe
-            var graph = tables.ToDictionary(
-                t => t.EntityType ?? throw new InvalidDataException("EntityType est null."),
-                t => t.ForeignTables.ToList() // copie pour manipulation
-            );
-
-            // 2. Trouver les nœuds sans dépendances
-            var noIncoming = new Queue<Type>(
-                graph.Where(kv => kv.Value.Count == 0).Select(kv => kv.Key)
-            );
-
-            var sorted = new List<Type>();
-
-            // 3. Algorithme de Kahn
-            while (noIncoming.Count > 0)
-            {
-                var n = noIncoming.Dequeue();
-                sorted.Add(n);
-
-                foreach (var kv in graph)
-                {
-                    if (kv.Value.Contains(n))
-                    {
-                        kv.Value.Remove(n);
-                        if (kv.Value.Count == 0)
-                            noIncoming.Enqueue(kv.Key);
-                    }
-                }
-            }
-
-            // 4. Vérification : cycle détecté ?
-            if (graph.Any(kv => kv.Value.Count > 0))
-                throw new InvalidOperationException("Cycle de dépendances détecté entre tables.");
-
-            // 5. Retourner les TableScriptGenerator dans l'ordre trié
-            return [.. sorted.Select(type => tables.First(t => t.EntityType == type))];
-        }
+        
     }
 
     enum TerminalOperator

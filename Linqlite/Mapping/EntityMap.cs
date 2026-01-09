@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Security.AccessControl;
 using System.Text;
 using ZSpitz.Util;
 
@@ -75,6 +76,32 @@ namespace Linqlite.Mapping
         public EntityPropertyInfo GetPrimaryKey()
         {
             return Columns.Single(c => c.IsPrimaryKey);
+        }
+
+        public List<EntityPropertyInfo> GetFlattedColumnsList()
+        {
+            return ConstructFlattedListFortype(this);
+        }
+
+        private static List<EntityPropertyInfo> ConstructFlattedListFortype(EntityMap? map)
+        {
+            if (map == null)
+                return [];
+
+            List<EntityPropertyInfo> list = [];
+            foreach (var col in map.Columns)
+            {
+                if (!string.IsNullOrEmpty(col.ColumnName))
+                {
+                    list.Add(col);
+                }
+                else 
+                {
+                    var mp = EntityMap.Get(col.PropertyType);
+                    list.AddRange(ConstructFlattedListFortype(mp));
+                }
+            }
+            return list;
         }
 
         internal string Projection(string alias)

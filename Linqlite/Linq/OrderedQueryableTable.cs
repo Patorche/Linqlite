@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Linqlite.Linq
 {
-    public class OrderedQueryableTable<T> : QueryableTable<T>, IOrderedQueryable<T>
+    internal class OrderedQueryableTable<T> : TableLite<T>, IOrderedQueryable<T>
     {
         public OrderedQueryableTable(IQueryProvider provider, Expression expression)
             : base(provider, expression)

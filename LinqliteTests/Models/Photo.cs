@@ -50,7 +50,11 @@ namespace Linqlite.Models
       
         [Column("width")]
         public int? Width { get; set; } = 0;
-      
+
+
+        [Column("newOne")]
+        public string NewOne { get; set; } = "";
+
         [Column("height")]
         public int? Height { get; set; } = 0;
         [Column("type")]

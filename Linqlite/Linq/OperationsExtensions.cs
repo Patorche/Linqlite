@@ -11,14 +11,14 @@ namespace Linqlite.Linq
         public static long Insert<T>(this IQueryable<T> table, T entity) where T : SqliteEntity, new()
         {
             var provider = (QueryProvider)table.Provider;
-            QueryableTable<T> query = (QueryableTable<T>)table;
+            TableLite<T> query = (TableLite<T>)table;
             var mode = query?.TrackingModeOverride ?? provider.DefaultTrackingMode;
             return provider.Insert<T>(entity, mode);
         }
         public static long InsertOrGetId<T>(this IQueryable<T> table, T entity) where T : SqliteEntity, new() 
         {
             var provider = (QueryProvider)table.Provider;
-            QueryableTable<T> query = (QueryableTable<T>)table;
+            TableLite<T> query = (TableLite<T>)table;
             var mode = query?.TrackingModeOverride ?? provider.DefaultTrackingMode;
             return provider.InsertOrGetId<T>(entity, mode);
         }

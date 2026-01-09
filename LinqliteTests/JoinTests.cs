@@ -11,8 +11,8 @@ namespace LinqliteTests
         public void JoinSimple()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
-            var photocatalogue = new QueryableTable<PhotoCatalogue>(provider);
+            var photos = provider.Table<Photo>();
+            var photocatalogue = provider.Table<PhotoCatalogue>();
 
             var sql = SqlFor(photos.Join(photocatalogue, p => p.Id, pc => pc.PhotoId, (p, pc) => new { p, pc }).Where(q => q.pc.IsDeleted == false));
 

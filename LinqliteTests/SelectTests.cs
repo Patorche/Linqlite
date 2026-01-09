@@ -12,7 +12,7 @@ namespace LinqliteTests
         public void SelectSimple() 
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider, TrackingMode.Manual);
+            var photos = provider.Table<Photo>( TrackingMode.Manual);
 
             var sql = SqlFor(photos);
 
@@ -23,7 +23,7 @@ namespace LinqliteTests
         public void SelectSimple2()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => true));
 
@@ -34,7 +34,7 @@ namespace LinqliteTests
         public void SelectSimple3()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Id == 15));
 
@@ -45,7 +45,7 @@ namespace LinqliteTests
         public void SelectSimple4()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Localisation.Latitude >= 35 && p.Width > 0));
 
@@ -56,7 +56,7 @@ namespace LinqliteTests
         public void SelectSimple5()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Select(p => new { p.Id, p.Filename }));
 
@@ -68,7 +68,7 @@ namespace LinqliteTests
         public void SelectSimple6()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Author.Contains("pat")).Select(p => new { p.Id, p.Filename }));
 
@@ -79,7 +79,7 @@ namespace LinqliteTests
         public void ContainsList()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
             List<long?> ids = new() {15000,900,800,1502 };
 
             var sql = SqlFor(photos.Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Filename }));

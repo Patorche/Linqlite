@@ -8,7 +8,8 @@ using static OneOf.Types.TrueFalseOrNull;
 
 namespace Linqlite.Linq
 {
-    public class QueryableTable<T> : IQueryable<T>, IQueryableTableDefinition
+    
+    internal class TableLite<T> : IQueryable<T>, IQueryableTableDefinition
     {
         private IQueryProvider _provider = new NullQueryProvider(typeof(T));
         private TrackingMode? _trackingmode = null;
@@ -24,13 +25,13 @@ namespace Linqlite.Linq
         }
 
 
-        public QueryableTable(TrackingMode? trackingModeOverride = null)
+        public TableLite(TrackingMode? trackingModeOverride = null)
         {
             _trackingmode = trackingModeOverride;
             Expression = Expression.Constant(this);
         }
 
-        public QueryableTable(IQueryProvider provider, TrackingMode? trackingModeOverride = null)
+        public TableLite(IQueryProvider provider, TrackingMode? trackingModeOverride = null)
         {
             Expression = Expression.Constant(this);
             _provider = provider;
@@ -38,7 +39,7 @@ namespace Linqlite.Linq
             
         }
 
-        public QueryableTable(IQueryProvider provider, Expression expression)
+        public TableLite(IQueryProvider provider, Expression expression)
         {
             _provider = provider;
             Expression = expression;

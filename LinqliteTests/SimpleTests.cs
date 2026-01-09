@@ -13,7 +13,7 @@ namespace LinqliteTests
         public void Base()
         {
             var provider = new QueryProvider("E:\\Dev\\Photolab.db\\photolab.db");
-            var catalogues = new QueryableTable<Catalogue>(provider);
+            var catalogues = provider.Table<Catalogue>();
             var sql = SqlFor(catalogues);
             Assert.Equal("SELECT t0.* FROM LIBRARY t0", sql);
         }
@@ -22,7 +22,7 @@ namespace LinqliteTests
         public void Where()
         {
             var provider = new QueryProvider("E:\\Dev\\Photolab.db\\photolab.db");
-            var catalogues = new QueryableTable<Catalogue>(provider);
+            var catalogues = provider.Table<Catalogue>();
 
             var sql = SqlFor(catalogues.Where(c => c.Id == 7));
             Assert.Equal("SELECT t0.* FROM LIBRARY t0 WHERE (t0.id = 7)", sql);
@@ -33,7 +33,7 @@ namespace LinqliteTests
         public void OrderBy1()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder));
             Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename ASC, t0.folder ASC", sql);
@@ -43,7 +43,7 @@ namespace LinqliteTests
         public void OrderByDesc()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderByDescending(p => p.Filename));
             Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename DESC", sql);
@@ -53,7 +53,7 @@ namespace LinqliteTests
         public void OrderByThenByThenBydescending1()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder).ThenByDescending(p => p.Width));
             Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename ASC, t0.folder ASC, t0.width DESC", sql);
@@ -63,7 +63,7 @@ namespace LinqliteTests
         public void Take()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Take(100));
             Assert.Equal("SELECT t0.* FROM PHOTO t0 LIMIT 100", sql);
@@ -73,7 +73,7 @@ namespace LinqliteTests
         public void Skip()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Skip(100));
             Assert.Equal("SELECT t0.* FROM PHOTO t0 LIMIT -1 OFFSET 100", sql);
@@ -83,7 +83,7 @@ namespace LinqliteTests
         public void OrderBy_After_Select_Should_Generate_Single_OrderBy_Clause()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
+            var photos = provider.Table<Photo>();
 
             var query = photos
                 .Select(p => new { p.Id, p.Filename })
@@ -102,8 +102,8 @@ namespace LinqliteTests
         public void OrderBy_ThenBy_After_Join_Should_Produce_Single_OrderBy_Clause()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
-            var catalog = new QueryableTable<Catalogue>(provider);
+            var photos = provider.Table<Photo>();
+            var catalog = provider.Table<Catalogue>();
 
 
             var query = photos
@@ -123,8 +123,8 @@ namespace LinqliteTests
         public void JoinSelectProjection()
         {
             var provider = new QueryProvider();
-            var photos = new QueryableTable<Photo>(provider);
-            var catalogues = new QueryableTable<Catalogue>(provider);
+            var photos = provider.Table<Photo>();
+            var catalogues = provider.Table<Catalogue>();
 
             var query = photos
                 .Join(catalogues, p => p.Id, c => c.Id, (p, c) => new { p, c })

@@ -18,7 +18,7 @@ using System.Text;
 
 namespace Linqlite.Linq
 {
-    public class LinqLiteProvider : IQueryProvider, IDisposable
+    public class LinqliteProvider : IQueryProvider, IDisposable
     {
         private static readonly HashSet<string> _terminalOperators = Enum.GetNames(typeof(TerminalOperator)).ToHashSet();
         private List<IQueryableTableDefinition> _queries = new();
@@ -38,12 +38,12 @@ namespace Linqlite.Linq
             private set => _dbFilename = value;
         }
 
-        public LinqLiteProvider()
+        public LinqliteProvider()
         {
             _schemaManager = new SchemaManager(this);
         }
 
-        public LinqLiteProvider(string dbFilename)
+        public LinqliteProvider(string dbFilename)
         {
             DbFileName = dbFilename;
             _schemaManager = new SchemaManager(this);
@@ -104,7 +104,7 @@ namespace Linqlite.Linq
 
         public long Insert<T>(T entity, TrackingMode mode) where T : SqliteEntity, new()
         {
-            return SqlQuery<T>.InsertOrGetId(entity, this, mode);
+            return SqlQuery<T>.Insert(entity, this, mode);
         }
 
         public long InsertOrGetId<T>(T entity, TrackingMode mode) where T : SqliteEntity, new()
@@ -235,9 +235,10 @@ namespace Linqlite.Linq
             }
         }
 
-        public void Attach(SqliteEntity entity, TrackingMode? mode = TrackingMode.AutoUpdate)
+        public void Attach(SqliteEntity entity, TrackingMode mode)
         {
-            switch (mode)
+            var m = (mode == TrackingMode.Undefined) ? DefaultTrackingMode : TrackingMode.Undefined;
+            switch (m)
             {
                 case TrackingMode.None:
                     // On ne tracke pas du tout
@@ -264,7 +265,7 @@ namespace Linqlite.Linq
             }
         }
 
-        public IQueryable<T> Table<T>(TrackingMode trackingMode = TrackingMode.None) where T : SqliteEntity
+        public IQueryable<T> Table<T>(TrackingMode trackingMode = TrackingMode.Undefined) where T : SqliteEntity
         { 
             var table = new TableLite<T>(trackingMode);
             Register(table); 
@@ -316,6 +317,7 @@ namespace Linqlite.Linq
     { 
         None, 
         AutoUpdate, 
-        Manual 
+        Manual,
+        Undefined
     }
 }

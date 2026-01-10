@@ -14,7 +14,7 @@ namespace LinqliteTests
         [Fact]
         public void ConnectionTest1()
         {
-            var provider = new LinqLiteProvider(connectionString);
+            var provider = new LinqliteProvider(connectionString);
             var photos = provider.Table<Photo>(TrackingMode.Manual);
 
             var query = photos.Where(p => p.Id >0).ToList();
@@ -29,7 +29,7 @@ namespace LinqliteTests
         [Fact]
         public async Task TestAvecNot()
         {
-            var provider = new LinqLiteProvider(connectionString);
+            var provider = new LinqliteProvider(connectionString);
             var photos = provider.Table<Photo>();
             var photoCatalogue = provider.Table<PhotoCatalogue>();
 
@@ -57,7 +57,7 @@ namespace LinqliteTests
         [Fact]
         public void TestAvecValeurBool()
         {
-            var provider = new LinqLiteProvider(connectionString);
+            var provider = new LinqliteProvider(connectionString);
             var photos = provider.Table<Photo>();
             var photoCatalogue = provider.Table<PhotoCatalogue>();
 
@@ -77,7 +77,7 @@ namespace LinqliteTests
         [Fact]
         public void TestInsertDelete()
         {
-            var provider = new LinqLiteProvider(connectionString);
+            var provider = new LinqliteProvider(connectionString);
             var photos = provider.Table<Photo>();
 
             Photo photo = new Photo()
@@ -109,7 +109,7 @@ namespace LinqliteTests
         [Fact]
         public void TestFullUpdate()
         {
-            var provider = new LinqLiteProvider(connectionString);
+            var provider = new LinqliteProvider(connectionString);
             var photos = provider.Table<Photo>();
 
             Photo photo = new Photo()
@@ -167,21 +167,43 @@ namespace LinqliteTests
         [Fact]
         public void TestUpdateTracking()
         {
-            var provider = new LinqLiteProvider(connectionString);
+            var provider = new LinqliteProvider(connectionString);
             var photos = provider.Table<Photo>();
 
-            var p = photos.Single(p => p.Filename == "IMG-20200819-WA0004.jpg");
+            Photo photo = new Photo()
+            {
+                Author = "Patorche",
+                CameraName = "K100",
+                Make = "Pentax",
+                Filename = "IMG00SHYdsf2SS.DNG",
+                Focal = "100",
+                Folder = @"c:\Imagess",
+                Height = 100,
+                Width = 100,
+                IsNew = true,
+                Orientation = 3,
+                Rate = 2,
+                TakenDate = new DateTime(2025, 12, 31),
+                ThumbHeight = 100,
+                ThumbWidth = 100,
+                Localisation = new GpsLocalisation() { City = "Paris", Country = "France", Latitude = 44.0, Longitude = 44.0 },
+                CameraSetting = new CameraSetting() { Aperture = 1, Focal = 100, Iso = 1500, ShutterSpeed = 0.001 },
+                Type = "PNG"
+            };
+            photos.InsertOrGetId(photo);
 
-            p.Rate++;
+            photo.Rate = photo.Rate + 1;
+            long id = photo.Rate;
 
-            var q = photos.Single(p => p.Filename == "IMG-20200819-WA0004.jpg");
-            Assert.Equal(p.Rate, q.Rate);
+            var q = photos.Single(p => p.Id == photo.Id);
+
+            Assert.Equal(id, q.Rate);
         }
 
         [Fact]
         public void TestPhotos()
         {
-            var provider = new LinqLiteProvider(connectionString);
+            var provider = new LinqliteProvider(connectionString);
             var photos = provider.Table<Photo>();
             var photocatalogues = provider.Table<PhotoCatalogue>();
             Catalogue catalogue = new Catalogue() { Id = 7 };

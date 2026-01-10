@@ -12,7 +12,7 @@ namespace LinqliteTests
         [Fact]
         public void Base()
         {
-            var provider = new LinqLiteProvider("E:\\Dev\\Photolab.db\\photolab.db");
+            var provider = new LinqliteProvider("E:\\Dev\\Photolab.db\\photolab.db");
             var catalogues = provider.Table<Catalogue>();
             var sql = SqlFor(catalogues);
             Assert.Equal("SELECT t0.* FROM LIBRARY t0", sql);
@@ -21,7 +21,7 @@ namespace LinqliteTests
         [Fact]
         public void Where()
         {
-            var provider = new LinqLiteProvider("E:\\Dev\\Photolab.db\\photolab.db");
+            var provider = new LinqliteProvider("E:\\Dev\\Photolab.db\\photolab.db");
             var catalogues = provider.Table<Catalogue>();
 
             var sql = SqlFor(catalogues.Where(c => c.Id == 7));
@@ -32,7 +32,7 @@ namespace LinqliteTests
         [Fact]
         public void OrderBy1()
         {
-            var provider = new LinqLiteProvider();
+            var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder));
@@ -42,7 +42,7 @@ namespace LinqliteTests
         [Fact]
         public void OrderByDesc()
         {
-            var provider = new LinqLiteProvider();
+            var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderByDescending(p => p.Filename));
@@ -52,7 +52,7 @@ namespace LinqliteTests
         [Fact]
         public void OrderByThenByThenBydescending1()
         {
-            var provider = new LinqLiteProvider();
+            var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder).ThenByDescending(p => p.Width));
@@ -62,7 +62,7 @@ namespace LinqliteTests
         [Fact]
         public void Take()
         {
-            var provider = new LinqLiteProvider();
+            var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Take(100));
@@ -72,7 +72,7 @@ namespace LinqliteTests
         [Fact]
         public void Skip()
         {
-            var provider = new LinqLiteProvider();
+            var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Skip(100));
@@ -82,7 +82,7 @@ namespace LinqliteTests
         [Fact]
         public void OrderBy_After_Select_Should_Generate_Single_OrderBy_Clause()
         {
-            var provider = new LinqLiteProvider();
+            var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
             var query = photos
@@ -101,7 +101,7 @@ namespace LinqliteTests
         [Fact]
         public void OrderBy_ThenBy_After_Join_Should_Produce_Single_OrderBy_Clause()
         {
-            var provider = new LinqLiteProvider();
+            var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
             var catalog = provider.Table<Catalogue>();
 
@@ -122,7 +122,7 @@ namespace LinqliteTests
         [Fact]
         public void JoinSelectProjection()
         {
-            var provider = new LinqLiteProvider();
+            var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
             var catalogues = provider.Table<Catalogue>();
 

@@ -17,7 +17,7 @@ namespace Linqlite.Linq
 {
     public static class SqlQuery<T> where T : SqliteEntity, new()
     {
-        public static IEnumerable<T> Execute(string sql, LinqLiteProvider provider, TrackingMode trackingMode, IReadOnlyDictionary<string, object> parameters)
+        public static IEnumerable<T> Execute(string sql, LinqliteProvider provider, TrackingMode trackingMode, IReadOnlyDictionary<string, object> parameters)
         {
             CheckConnection(provider.Connection);
             
@@ -45,7 +45,7 @@ namespace Linqlite.Linq
         }
 
 
-        public static long InsertOrGetId(T entity, LinqLiteProvider provider, TrackingMode trackingMode)
+        public static long InsertOrGetId(T entity, LinqliteProvider provider, TrackingMode trackingMode)
         {
             CheckConnection(provider.Connection);
 
@@ -80,7 +80,7 @@ namespace Linqlite.Linq
             return id;
         }
 
-        public static long Insert(T entity, LinqLiteProvider provider, TrackingMode trackingMode)
+        public static long Insert(T entity, LinqliteProvider provider, TrackingMode trackingMode)
         {
             CheckConnection(provider.Connection);
 
@@ -115,7 +115,7 @@ namespace Linqlite.Linq
 
 
 
-        public static void Delete(T entity, LinqLiteProvider provider)
+        public static void Delete(T entity, LinqliteProvider provider)
         {
             CheckConnection(provider.Connection);
 
@@ -136,7 +136,7 @@ namespace Linqlite.Linq
             provider.Detach(entity);
         }
 
-        internal static void Update(T entity, string? property, LinqLiteProvider provider)
+        internal static void Update(T entity, string? property, LinqliteProvider provider)
         {
             ArgumentNullException.ThrowIfNull(property);
 
@@ -221,7 +221,7 @@ namespace Linqlite.Linq
             return updateString.ToString();
         }
 
-        public static void Update(T entity, LinqLiteProvider provider)
+        public static void Update(T entity, LinqliteProvider provider)
         {
             CheckConnection(provider.Connection);
              

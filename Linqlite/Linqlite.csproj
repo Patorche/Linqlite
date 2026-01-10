@@ -8,8 +8,8 @@
     <AssemblyTitle>Linqlite</AssemblyTitle>
 	<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	<PackageId>Linqlite</PackageId>
-	<Version>1.5.0</Version>
-	<Authors>Patrice</Authors>
+	<Version>1.5.1</Version>
+	<Authors>Patorche</Authors>
 	<Description>Lightweight LINQ provider for SQLite.</Description>
 	<PackageLicenseExpression>MIT</PackageLicenseExpression>
 	<RepositoryUrl>https://github.com/toncompte/Linqlite</RepositoryUrl>

@@ -12,8 +12,8 @@ namespace Linqlite.Linq
     internal class TableLite<T> : IQueryable<T>, IQueryableTableDefinition
     {
         private IQueryProvider _provider = new NullQueryProvider(typeof(T));
-        private TrackingMode? _trackingmode = null;
-        public TrackingMode? TrackingModeOverride => _trackingmode;
+        private TrackingMode _trackingmode = TrackingMode.Undefined;
+        public TrackingMode TrackingModeOverride => _trackingmode;
         public Expression Expression { get; private set; }
         public Type ElementType => typeof(T);
         public Type EntityType => typeof(T);
@@ -25,13 +25,13 @@ namespace Linqlite.Linq
         }
 
 
-        public TableLite(TrackingMode? trackingModeOverride = null)
+        public TableLite(TrackingMode trackingModeOverride = TrackingMode.Undefined)
         {
             _trackingmode = trackingModeOverride;
             Expression = Expression.Constant(this);
         }
 
-        public TableLite(IQueryProvider provider, TrackingMode? trackingModeOverride = null)
+        public TableLite(IQueryProvider provider, TrackingMode trackingModeOverride = TrackingMode.Undefined)
         {
             Expression = Expression.Constant(this);
             _provider = provider;
@@ -48,7 +48,7 @@ namespace Linqlite.Linq
         internal void AttachEntity(T entity) 
         { 
             if (entity is SqliteEntity obj) 
-                ((LinqLiteProvider)Provider).Attach(obj, TrackingModeOverride); 
+                ((LinqliteProvider)Provider).Attach(obj, TrackingModeOverride); 
         }
 
         public IEnumerator<T> GetEnumerator()

@@ -7,6 +7,6 @@ namespace Linqlite.Linq
     internal interface IQueryableTableDefinition
     {
         Type EntityType { get; }
-        TrackingMode? TrackingModeOverride { get; }
+        TrackingMode TrackingModeOverride { get; }
     }
 }

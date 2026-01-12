@@ -71,8 +71,9 @@ namespace Linqlite.Linq
             using var cmd = provider?.Connection?.CreateCommand() ?? throw new InvalidOperationException("Le provider a retourné un commande null !");
             PopulateInsertCommand(cmd, entity);
 
-
-            cmd.CommandText = sb.ToString();
+            var sql = sb.ToString();
+            provider.Logger?.Log(sql);
+            cmd.CommandText = sql;
             var res = cmd.ExecuteScalar();
             long id = Convert.ToInt64(res);
             HydratorBuilder.SetPrimaryKey(entity, id);
@@ -96,9 +97,11 @@ namespace Linqlite.Linq
             using var cmd = provider?.Connection?.CreateCommand() ?? throw new InvalidOperationException("Le provider a retourné un commande null !");
             PopulateInsertCommand(cmd, entity);
 
-            cmd.CommandText = sb.ToString();
+            var sql = sb.ToString();
+            provider.Logger?.Log(sql);
+            cmd.CommandText = sql;
             var res = cmd.ExecuteNonQuery();
-
+            
             if (res == 1)
             {
                 var idQuery = $"SELECT last_insert_rowid();";
@@ -130,8 +133,10 @@ namespace Linqlite.Linq
 
             using var cmd = provider?.Connection?.CreateCommand() ?? throw new InvalidOperationException("Le provider a retourné un commande null !");
             cmd.Parameters.AddWithValue($"@{key.ColumnName}", GetSqliteValue(key.PropertyInfo, entity));
-            
-            cmd.CommandText = sb.ToString();
+
+            var sql = sb.ToString();
+            provider.Logger?.Log(sql);
+            cmd.CommandText = sql;
             cmd.ExecuteNonQuery();
             provider.Detach(entity);
         }
@@ -177,8 +182,10 @@ namespace Linqlite.Linq
             sb.Append(" WHERE ");
             sb.Append($"{key.ColumnName} = @{key.ColumnName}");
             cmd.Parameters.AddWithValue($"@{key.ColumnName}", GetSqliteValue(key.PropertyInfo, entity));
-            
-            cmd.CommandText += sb.ToString();
+
+            var sql = sb.ToString();
+            provider.Logger?.Log(sql);
+            cmd.CommandText += sql;
             cmd.ExecuteNonQuery();
         }
 
@@ -243,7 +250,9 @@ namespace Linqlite.Linq
             sb.Append($"{key.ColumnName} = @{key.ColumnName}");
             cmd.Parameters.AddWithValue($"@{key.ColumnName}", GetSqliteValue(key.PropertyInfo, entity));
 
-            cmd.CommandText = sb.ToString();
+            var sql = sb.ToString();
+            provider.Logger?.Log(sql);
+            cmd.CommandText = sql;
             cmd.ExecuteNonQuery();
         }
 

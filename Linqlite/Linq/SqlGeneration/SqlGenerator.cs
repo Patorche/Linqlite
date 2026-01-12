@@ -16,7 +16,8 @@ namespace Linqlite.Linq.SqlGeneration
         public string Generate(SqlExpression source) 
         {
             Visit(source);
-            return _sb.ToString(); 
+            string sql = _sb.ToString();
+            return sql; 
         }
 
         private void Visit(SqlExpression source)

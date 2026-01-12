@@ -123,14 +123,18 @@ namespace Linqlite.Linq.SqlVisitor
                 return new SqlParameterExpression(value, node.Type);
             }
 
-            Type projType = GetSelectSource()?.Projection?.Type ?? throw new UnreachableException("Un erreur a été rencontrée lors du parcours de l'arbre : _sqlSelect est null");
-            if(memberDeclaringType == projType)
+            var projection = GetSelectSource()?.Projection;
+            if (projection != null)
             {
-                if (_sqlSelect?.Projection is SqlMemberProjectionExpression proj)
+                Type projType = projection.Type ?? throw new UnreachableException("Un erreur a été rencontrée lors du parcours de l'arbre");
+                if (memberDeclaringType == projType)
                 {
-                    if (proj.Columns.TryGetValue(node.Member, out var exp))
+                    if (_sqlSelect?.Projection is SqlMemberProjectionExpression proj)
                     {
-                        return exp;
+                        if (proj.Columns.TryGetValue(node.Member, out var exp))
+                        {
+                            return exp;
+                        }
                     }
                 }
             }

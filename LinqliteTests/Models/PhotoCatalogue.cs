@@ -7,7 +7,7 @@ using TableAttribute = Linqlite.Attributes.TableAttribute;
 
 namespace Linqlite.Models
 { 
-    [Table("PHOTO_LIB", isJoin:true)]
+    [Table("PHOTO_LIB")]
     public class PhotoCatalogue : SqliteEntity
     {
         private bool _isDeleted = false;

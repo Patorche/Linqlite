@@ -1,5 +1,6 @@
 ﻿
 using Linqlite.Linq;
+using Linqlite.Logger;
 using Linqlite.Models;
 
 namespace LinqliteTests 
@@ -24,6 +25,26 @@ namespace LinqliteTests
                 sql);
         }
 
+        [Fact]
+        public void Join2() 
+        {
+            var provider = new LinqliteProvider();
+            provider.Logger = new SqlLogger();
+            var photos = provider.Table<Photo>();
+            var photoKeyWords = provider.Table<PhotoKeyWords>();
+            var keyWords = provider.Table<KeyWord>();
 
+            var kw = keyWords.Join(photoKeyWords, k => k.Id, pk => pk.KeyWordId, (w, pk) => new { w, pk }).Where(q => q.pk.PhotoId == 15000).Select(j => j.w).ToList();
+        }
+
+
+    }
+
+    public class SqlLogger : ILinqliteLogger
+    {
+        public void Log(string message)
+        {
+            System.Diagnostics.Debug.WriteLine(message);
+        }
     }
 }

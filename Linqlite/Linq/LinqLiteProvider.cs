@@ -2,6 +2,7 @@
 using Linqlite.Linq.SqlExpressions;
 using Linqlite.Linq.SqlGeneration;
 using Linqlite.Linq.SqlVisitor;
+using Linqlite.Logger;
 using Linqlite.Mapping;
 using Linqlite.Sqlite;
 using Microsoft.Data.Sqlite;
@@ -26,6 +27,9 @@ namespace Linqlite.Linq
         private string _dbFilename = "";
         internal SqliteConnection? Connection = null;
         SchemaManager _schemaManager;
+
+
+        public ILinqliteLogger? Logger { get; set; }
 
         public TrackingMode DefaultTrackingMode { get; set; } = TrackingMode.AutoUpdate;
 
@@ -153,6 +157,7 @@ namespace Linqlite.Linq
             SqlExpression exp = visitor.Build(expression);
             SqlGenerator gen = new SqlGenerator();
             var sql = gen.Generate(exp);
+            Logger?.Log(sql);
             var elementType = TypeSystem.GetElementType(expression.Type);
 
             var method = typeof(SqlQuery<>)

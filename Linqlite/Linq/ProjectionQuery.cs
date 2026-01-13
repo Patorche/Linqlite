@@ -15,6 +15,12 @@ namespace Linqlite.Linq
             if (provider.Connection == null) throw new ArgumentNullException("Aucune connection n'est active pour le Provider");
             using var cmd = provider.Connection.CreateCommand();// sql, parameters);
             cmd.CommandText = sql;
+            
+            foreach (var parameter in parameters)
+            {
+                cmd.Parameters.AddWithValue(parameter.Key, parameter.Value);
+            }
+
             using var reader = cmd.ExecuteReader();
 
             var list = new List<T?>();

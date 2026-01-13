@@ -144,6 +144,20 @@ namespace LinqliteTests
 
             Assert.Equal("SELECT t0.id, t0.filename FROM PHOTO t0 WHERE (t0.id IN (15000, 900, 800, 1502))", sql);
         }
+
+        [Fact]
+        public void JoinWhereSelect() 
+        {
+            var provider = new LinqliteProvider(@"E:\Dev\Photolab.db\devBase.db");
+            provider.Logger = new SqlLogger();
+            var photos = provider.Table<Photo>();
+            var photoKeyWords = provider.Table<PhotoKeyWords>();
+            var keyWords = provider.Table<KeyWord>();
+            Photo photo = new Photo() { Id = 35 };
+            var ws = keyWords.Join(photoKeyWords, k => k.Id, p => p.KeyWordId, (k, p) => new { k, p }).Where(j => j.p.PhotoId == photo.Id).Select(j => j.k.Word).ToList();
+            int i = 0;
+
+        }
     }
 
     public class MyDto

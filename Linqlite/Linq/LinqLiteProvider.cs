@@ -16,6 +16,7 @@ using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection.Emit;
 using System.Text;
+using System.Xml;
 
 namespace Linqlite.Linq
 {
@@ -53,6 +54,8 @@ namespace Linqlite.Linq
             _schemaManager = new SchemaManager(this);
             Connect();
         }
+
+        bool IsEntityType(Type t) => typeof(SqliteEntity).IsAssignableFrom(t);
 
         private void Connect()
         {
@@ -160,11 +163,17 @@ namespace Linqlite.Linq
             Logger?.Log(sql);
             var elementType = TypeSystem.GetElementType(expression.Type);
 
-            var method = typeof(SqlQuery<>)
-                .MakeGenericType(elementType)
-                .GetMethod(nameof(SqlQuery<SqliteEntity>.Execute));
-            return method?.Invoke(null, new object[] { sql, this, mode, gen.Parameters });
+            if (IsEntityType(elementType))
+            {
+                return ExecuteEntitySequence(elementType,sql,mode,gen.Parameters);
+            }
+            else
+            {
+                return ExecuteProjectionSequence(elementType, sql, gen.Parameters, (SqlMemberProjectionExpression)((SqlSelectExpression)exp).Projection);
+            }
         }
+
+        
 
         private object? ExecuteTerminal(MethodCallExpression mce, TrackingMode mode)
         {
@@ -196,6 +205,25 @@ namespace Linqlite.Linq
 
             return method.Invoke(null, new[] { casted });
         }
+
+        private object? ExecuteEntitySequence(Type? elementType, string sql, TrackingMode mode, IReadOnlyDictionary<string, object> parameters)
+        {
+            var method = typeof(SqlQuery<>)
+                .MakeGenericType(elementType)
+                .GetMethod(nameof(SqlQuery<SqliteEntity>.Execute));
+            return method?.Invoke(null, new object[] { sql, this, mode, parameters });
+        }
+
+
+        private object? ExecuteProjectionSequence(Type elementType, string sql, IReadOnlyDictionary<string, object> parameters, SqlMemberProjectionExpression infos)
+        {
+            var method = typeof(ProjectionQuery<>)
+                .MakeGenericType(elementType)
+                .GetMethod(nameof(ProjectionQuery<object>.Execute));
+
+            return method!.Invoke(null, new object[] { sql, this, parameters, infos });
+        }
+
 
         private static bool IsTerminalOperatorWithoutPredicate(MethodCallExpression op)
         {

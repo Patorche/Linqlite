@@ -8,6 +8,8 @@ namespace LinqliteTests
 {
     public class SelectTests : TestBase
     {
+        static string connectionString = "E:\\Dev\\Photolab.db\\photolab.db";
+
         [Fact]
         public void SelectSimple() 
         {
@@ -31,11 +33,67 @@ namespace LinqliteTests
         }
 
         [Fact]
+        public void SelectFullProjection()
+        {
+            var provider = new LinqliteProvider(connectionString);
+            var photos = provider.Table<Photo>(TrackingMode.Manual);
+
+            var sql = photos.ToList();
+
+            //Assert.Equal("SELECT t0.* FROM PHOTO t0", sql);
+        }
+
+        [Fact]
+        public void ProjectionAnonymous()
+        {
+            var provider = new LinqliteProvider(connectionString);
+            var photos = provider.Table<Photo>();
+            var l = photos.Select(p => new { p.Id, p.Filename }).ToList();
+            int i = 0;
+        }
+
+        [Fact]
+        public void ProjectionSimple()
+        {
+            var provider = new LinqliteProvider(connectionString);
+            var photos = provider.Table<Photo>();
+            var l = photos.Select(p => p.Id).ToList();
+            int i = 0;
+        }
+
+        [Fact]
+        public void ProjectionTuple()
+        {
+            var provider = new LinqliteProvider(connectionString);
+            var photos = provider.Table<Photo>();
+            var l = photos.Select(p => ValueTuple.Create(p.Id, p.Filename)).ToList();
+            int i = 0;
+        }
+
+        [Fact]
+        public void ProjectionDto()
+        {
+            var provider = new LinqliteProvider(connectionString);
+            var photos = provider.Table<Photo>();
+            var l = photos.Select(p => new MyDto() { Id = p.Id, Name = p.Filename }).ToList();
+            int i = 0;
+        }
+
+        [Fact]
+        public void ProjectionJoin()
+        {
+            var provider = new LinqliteProvider(connectionString);
+            var photos = provider.Table<Photo>();
+            var photocatalogue = provider.Table<PhotoCatalogue>();
+            var query = photocatalogue.Join(photos, c => c.PhotoId, p => p.Id, (c, p) => new { c, p }).Select(j => new { j.c.CatalogueId, j.p.Filename }).ToList();
+        }
+
+        [Fact]
         public void SelectSimple3()
         {
             var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
-
+           
             var sql = SqlFor(photos.Where(p => p.Id == 15));
 
             Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id = 15)", sql);
@@ -86,5 +144,11 @@ namespace LinqliteTests
 
             Assert.Equal("SELECT t0.id, t0.filename FROM PHOTO t0 WHERE (t0.id IN (15000, 900, 800, 1502))", sql);
         }
+    }
+
+    public class MyDto
+    {
+        public long? Id {  get; set; }
+        public string Name { get; set; } = "";
     }
 }

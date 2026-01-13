@@ -8,6 +8,8 @@ namespace LinqliteTests
 
     public class JoinTests : TestBase
     {
+        static string connectionString = "E:\\Dev\\Photolab.db\\photolab.db";
+
         [Fact]
         public void JoinSimple()
         {
@@ -28,11 +30,12 @@ namespace LinqliteTests
         [Fact]
         public void Join2() 
         {
-            var provider = new LinqliteProvider();
+            var provider = new LinqliteProvider(connectionString);
             provider.Logger = new SqlLogger();
             var photos = provider.Table<Photo>();
             var photoKeyWords = provider.Table<PhotoKeyWords>();
             var keyWords = provider.Table<KeyWord>();
+            provider.EnsureTablesCreated();
 
             var kw = keyWords.Join(photoKeyWords, k => k.Id, pk => pk.KeyWordId, (w, pk) => new { w, pk }).Where(q => q.pk.PhotoId == 15000).Select(j => j.w).ToList();
         }

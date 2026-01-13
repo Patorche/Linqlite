@@ -17,7 +17,7 @@ namespace Linqlite.Linq.SqlVisitor
             builder.SetCurrentSource(source);
             
             var lambda = (LambdaExpression)builder.StripQuotes(node.Arguments[1]); 
-            var projection = HandleProjection(lambda.Body, builder); 
+            var projection = HandleProjection(lambda.Body, builder, selectExpression); 
             selectExpression.SetProjection(projection); 
             builder.SetCurrentSource(oldSource); 
             return source;

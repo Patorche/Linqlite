@@ -236,6 +236,9 @@ namespace Linqlite.Linq
         public TResult Execute<TResult>(Expression expression)
         {
             var result = Execute(expression);
+            if(result == null && typeof(TResult).IsValueType == false) 
+                return default;
+
             return result == null
                 ? throw new UnreachableException("Une  erreur est survenue lors de l'analyse de l'arbre d'expresssion.")
                 : (TResult)result;

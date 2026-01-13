@@ -51,7 +51,9 @@ public class TerminalVisitor : ExpressionVisitor
     {
         // Méthodes terminales avec prédicat : Single, First, Any, Count
         return (methodName == "Single" ||
+                methodName == "SingleOrDefault" ||
                 methodName == "First" ||
+                methodName == "FirstOrDefault" ||
                 methodName == "Any" ||
                 methodName == "Count")
                && argCount == 2; // 2 arguments = source + prédicat

@@ -71,7 +71,7 @@ namespace Linqlite.Hydration
             return (T)ctor.Invoke(args);
         }
 
-        internal static object ConvertValue(object raw, Type targetType)
+        internal static object? ConvertValue(object raw, Type targetType)
         {
             if (raw == DBNull.Value)
                 return targetType.IsValueType ? Activator.CreateInstance(targetType)! : null;
@@ -99,7 +99,7 @@ namespace Linqlite.Hydration
             var ordered = projection.Columns.ToList(); // ordre garanti par ton visitor
 
             // 3. Préparer les valeurs converties
-            var converted = new object[ordered.Count];
+            var converted = new object?[ordered.Count];
 
             for (int i = 0; i < ordered.Count; i++)
             {

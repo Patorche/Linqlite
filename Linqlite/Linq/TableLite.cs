@@ -1,29 +1,31 @@
 ﻿using Linqlite.Sqlite;
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Linq.Expressions;
-using System.Text;
-using static OneOf.Types.TrueFalseOrNull;
+//using static OneOf.Types.TrueFalseOrNull;
 
 namespace Linqlite.Linq
 {
-    
-    internal class TableLite<T> : IQueryable<T>, IQueryableTableDefinition
+    public interface ITable<T> : IQueryable<T> { }
+
+    internal class TableLite<T> : ITable<T>, IQueryableTableDefinition
     {
         private IQueryProvider _provider = new NullQueryProvider(typeof(T));
         private TrackingMode _trackingmode = TrackingMode.Undefined;
+
         public TrackingMode TrackingModeOverride => _trackingmode;
+        
         public Expression Expression { get; private set; }
+        
         public Type ElementType => typeof(T);
+        
         public Type EntityType => typeof(T);
+        
         public IQueryProvider Provider 
         { 
             get => _provider;
             set => _provider = value;
 
         }
-
 
         public TableLite(TrackingMode trackingModeOverride = TrackingMode.Undefined)
         {
@@ -61,5 +63,4 @@ namespace Linqlite.Linq
             return GetEnumerator();
         }
     }
-
 }

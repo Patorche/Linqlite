@@ -206,19 +206,19 @@ namespace Linqlite.Linq.SqlGeneration
 
         private void VisitBinary(SqlBinaryExpression bin)
         {
-            _sb.Append("(");
+            _sb.Append('(');
             VisitExpression(bin.Left);
             _sb.Append($" {bin.Operator} ");
             VisitExpression(bin.Right);
-            _sb.Append(")");
+            _sb.Append(')');
         }
 
         private void VisitUnary(SqlUnaryExpression un)
         {
-            _sb.Append("(");
+            _sb.Append('(');
             _sb.Append($"{un.Operator} ");
             VisitExpression(un.Operand);
-            _sb.Append(")");
+            _sb.Append(')');
         }
 
         private void VisitConstant(SqlConstantExpression c)
@@ -263,7 +263,14 @@ namespace Linqlite.Linq.SqlGeneration
         private void VisitParameter(SqlParameterExpression par)
         {
             var name = GetNextAliasParameter();
-            _parameters.Add(name, par.Value ?? DBNull.Value);
+
+            if (par.Value != null && par.Value is string  valueString) 
+            {
+                valueString = valueString.Replace("'", "''");
+                _parameters.Add(name, valueString);
+            }
+            else
+                _parameters.Add(name, par.Value ?? DBNull.Value);
             _sb.Append(name);
         }
 

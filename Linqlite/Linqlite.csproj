@@ -13,6 +13,7 @@
 	<Description>Lightweight LINQ provider for SQLite.</Description>
 	<PackageLicenseExpression>MIT</PackageLicenseExpression>
 	<RepositoryUrl>https://github.com/toncompte/Linqlite</RepositoryUrl>
+	<PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,6 +26,7 @@
     <PackageReference Include="ExpressionTreeToString" Version="3.4.71" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.1" />
     <PackageReference Include="SQLitePCLRaw.provider.sqlite3" Version="3.0.2" />
+	<None Include="..\README.md" Pack="true" PackagePath="\" Link="README.md" />
   </ItemGroup>
 
   <ItemGroup>

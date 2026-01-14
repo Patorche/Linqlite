@@ -1,34 +1,25 @@
-﻿using Linqlite.Hydration;
-using Linqlite.Linq.SqlExpressions;
+﻿using Linqlite.Linq.SqlExpressions;
 using Linqlite.Linq.SqlGeneration;
 using Linqlite.Linq.SqlVisitor;
 using Linqlite.Logger;
-using Linqlite.Mapping;
 using Linqlite.Sqlite;
 using Microsoft.Data.Sqlite;
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
-using System.Data.Common;
 using System.Diagnostics;
 using System.Linq.Expressions;
-using System.Reflection.Emit;
-using System.Text;
-using System.Xml;
 
 namespace Linqlite.Linq
 {
     public class LinqliteProvider : IQueryProvider, IDisposable
     {
-        private static readonly HashSet<string> _terminalOperators = Enum.GetNames(typeof(TerminalOperator)).ToHashSet();
-        private List<IQueryableTableDefinition> _queries = new();
-        private readonly Dictionary<object, PropertyChangedEventHandler> _handlers = new();
+        private static readonly HashSet<string> _terminalOperators = [.. Enum.GetNames<TerminalOperator>()];
+        private readonly List<IQueryableTableDefinition> _queries = [];
+        private readonly Dictionary<object, PropertyChangedEventHandler> _handlers = [];
         private string _dbFilename = "";
-        internal SqliteConnection? Connection = null;
-        SchemaManager _schemaManager;
+        private SchemaManager _schemaManager;
 
+        internal SqliteConnection? Connection = null;
 
         public ILinqliteLogger? Logger { get; set; }
 
@@ -301,7 +292,7 @@ namespace Linqlite.Linq
             }
         }
 
-        public IQueryable<T> Table<T>(TrackingMode trackingMode = TrackingMode.Undefined) where T : SqliteEntity
+        public ITable<T> Table<T>(TrackingMode trackingMode = TrackingMode.Undefined) where T : SqliteEntity
         { 
             var table = new TableLite<T>(trackingMode);
             Register(table); 

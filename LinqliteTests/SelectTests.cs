@@ -163,8 +163,17 @@ namespace LinqliteTests
         public void SingleOrDefault()
         {
             var provider = new LinqliteProvider(@"E:\Dev\Photolab.db\devBase.db");
-            var keyWords = provider.Table<KeyWord>();
+            ITable<KeyWord> keyWords = provider.Table<KeyWord>();
             var res = keyWords.SingleOrDefault(w => w.Word == "test");
+            System.Console.WriteLine(res);
+        }
+
+        [Fact]
+        public void EmptyList()
+        {
+            var provider = new LinqliteProvider(@"E:\Dev\Photolab.db\devBase.db");
+            var keyWords = provider.Table<KeyWord>();
+            var res = keyWords.Where(w => w.Word == "doesn't exists").ToList();
             System.Console.WriteLine(res);
         }
     }

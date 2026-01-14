@@ -20,7 +20,6 @@ namespace Linqlite.Linq
         public static IEnumerable<T?> Execute(string sql, LinqliteProvider provider, TrackingMode trackingMode, IReadOnlyDictionary<string, object> parameters)
         {
             CheckConnection(provider.Connection);
-            bool hasResult = false;
             
             var command = provider?.Connection?.CreateCommand() ?? throw new InvalidOperationException("Le provider a retourné un commande null !");
             command.CommandText = sql;
@@ -35,13 +34,7 @@ namespace Linqlite.Linq
                 {
                     T entity = HydratorBuilder.GetEntity<T>(reader) ?? throw new InvalidDataException("Entité null retournée");
                     provider?.Attach(entity, trackingMode);
-                    hasResult = true;
                     yield return entity;
-                }
-
-                if (!hasResult)
-                {
-                    yield return default;
                 }
             }
             finally 
@@ -49,7 +42,6 @@ namespace Linqlite.Linq
                 reader.Dispose(); 
                 command.Dispose(); 
             }
-            
         }
 
 

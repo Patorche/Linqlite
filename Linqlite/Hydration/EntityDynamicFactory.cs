@@ -16,7 +16,7 @@ namespace Linqlite.Hydration
             {
                 var ctor = type.GetConstructor(Type.EmptyTypes);
                 if (ctor == null)
-                    throw new InvalidOperationException($"Type {type} must have a parameterless constructor.");
+                    throw new InvalidOperationException($"Type {type} doit avoir un constructeur sans paramètre.");
 
                 var newExpr = Expression.New(ctor);
                 var lambda = Expression.Lambda<Func<object>>(newExpr);

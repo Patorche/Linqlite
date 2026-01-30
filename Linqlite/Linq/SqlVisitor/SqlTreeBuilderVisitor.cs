@@ -1,9 +1,11 @@
-﻿using Linqlite.Linq.SqlExpressions;
+﻿using Linqlite.Linq.Relations;
+using Linqlite.Linq.SqlExpressions;
 using Linqlite.Mapping;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq.Expressions;
+using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,6 +18,10 @@ namespace Linqlite.Linq.SqlVisitor
         private SqlExpression? _sqlSource;
         private SqlSelectExpression? _sqlSelect;
         private int _aliasNumber;
+        private readonly Dictionary<ParameterExpression, SqlExpression> _parameterScope = new Dictionary<ParameterExpression, SqlExpression>();
+        private readonly LinqliteProvider _provider;
+
+
         private static readonly Dictionary<string, IMethodCallHandler> _methodBuilders = new()
         {
             ["Where"] = new WhereCallHandler(),
@@ -27,7 +33,9 @@ namespace Linqlite.Linq.SqlVisitor
             ["Take"] = new TakeCallHandler(),
             ["Skip"] = new SkipCallHandler(),
             ["Contains"] = new ContainsCallHandler(),
-            ["Join"] = new JoinCallHandler()
+            ["Join"] = new InnerJoinCallHandler(),
+            ["LeftJoin"] = new LeftJoinCallHandler(),
+            ["GroupBy"] = new GroupByCallHandler()
         };
 
         private static readonly Dictionary<ExpressionType, string> _binaryOperators = new()
@@ -44,9 +52,13 @@ namespace Linqlite.Linq.SqlVisitor
 
         public Dictionary<string, object> Parameters = new();
 
+        public SqlTreeBuilderVisitor(LinqliteProvider provider)
+        {
+            _provider = provider;
+        }
+
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-  
             if (_methodBuilders.TryGetValue(node.Method.Name, out var handler))
                 return handler.Handle(node, this);
 
@@ -57,20 +69,36 @@ namespace Linqlite.Linq.SqlVisitor
 
         public SqlExpression Build(Expression expression)
         {
-            // point d’entrée
-            SqlExpression sqlExpr = (SqlExpression)Visit(expression);
-            if(_sqlSelect == null)
+            Expression exp = Visit(expression);
+            
+            SqlExpression sqlExpr = (SqlExpression)exp;
+            if (sqlExpr is SqlGroupByExpression)
+
+                return sqlExpr;
+
+            
+            _sqlSelect ??= new SqlSelectExpression(sqlExpr.Type)
             {
-                _sqlSelect = new SqlSelectExpression(sqlExpr.Type)
-                {
-                    From = (SqlSourceExpression)sqlExpr
-                };
-            }
+                From = (SqlSourceExpression)sqlExpr
+            };
             return _sqlSelect!;
         }
 
+        protected override Expression VisitLambda<T>(Expression<T> node)
+        {
+            // On visite le body dans un nouveau scope
+            foreach (var p in node.Parameters)
+                _parameterScope[p] = _sqlSource!;
+
+            var body = Visit(node.Body);
+
+            return node.Update(body, node.Parameters);
+        }
+
+
         protected override Expression VisitMember(MemberExpression node)
         {
+            
             if (IsCapturedValue(node))
             {
                 var value = EvaluateCapturedValue(node);
@@ -106,6 +134,14 @@ namespace Linqlite.Linq.SqlVisitor
 
                 if (join.Right.Type == memberDeclaringType)
                     return new SqlColumnExpression(((SqlSourceExpression)join.Right).Alias, GetColumnName(join.Right.Type, node), node.Type);
+
+                
+                if (IsMappedEntity(node.Type))
+                {
+                    //string alias = (join.Left.Type == node.Type) ? ((SqlSourceExpression)join.Left).Alias : ((SqlSourceExpression)join.Right).Alias;
+                    string alias = GetAliasFromJoin(join, node.Type);
+                    return new SqlEntityReferenceExpression(alias, node.Type);
+                }
             }
 
             if (_sqlSource is SqlTableExpression table)
@@ -142,7 +178,19 @@ namespace Linqlite.Linq.SqlVisitor
             return base.VisitMember(node);
         }
 
-        private bool IsMappedEntity(Type type)
+        private string GetAliasFromJoin(SqlJoinExpression join, Type type)
+        {
+            if (type == join.Right.Type)
+                return ((SqlTableExpression)(join.Right)).Alias;
+            if(type == join.Left.Type)
+                return ((SqlSourceExpression)join.Left).Alias;
+            // Ici, le Left est autre chose qu'un Table => join
+            if (join.Left is SqlJoinExpression j)
+                return GetAliasFromJoin(j, type);
+            throw new UnreachableException($"Alias non trouvé pour {type}");
+        }
+
+        internal bool IsMappedEntity(Type type)
         {
             var map = EntityMap.Get(type);
             return map != null;
@@ -150,7 +198,13 @@ namespace Linqlite.Linq.SqlVisitor
 
         protected override Expression VisitParameter(ParameterExpression node)
         {
-            return _sqlSource ?? throw new UnreachableException("Un erreur a été rencontrée lors du parcours de l'arbre : _sqlSource est null");
+            if (_parameterScope.TryGetValue(node, out var sql))
+                return sql;
+
+            throw new UnreachableException(
+                $"Paramètre LINQ non résolu : {node.Name}. " +
+                $"Le scope ne contient pas de SqlExpression pour ce paramètre."
+            );
         }
 
 
@@ -169,13 +223,6 @@ namespace Linqlite.Linq.SqlVisitor
             return new SqlConstantExpression(node.Value ?? DBNull.Value, node.Type);
               
         }
-
-        /*private SqlExpression? CreateSelectForTable(Type elementType)
-        {
-            var map = EntityMap.Get(elementType);
-            SqlTableExpression table = new SqlTableExpression(map.TableName, GetNextAlias(), elementType);
-            return new SqlSelectExpression(elementType) { From = table };
-        }*/
 
         protected override Expression VisitUnary(UnaryExpression node)
         {
@@ -198,6 +245,22 @@ namespace Linqlite.Linq.SqlVisitor
 
             return new SqlBinaryExpression(left, op, right);
         }
+
+        protected override Expression VisitExtension(Expression node)
+        {
+            if(node is SqlWithRelationsExpression with)
+            {
+                var joined =  RelationsBuilder.BuildWithRelations(with.Source, _provider);
+                return Visit(joined);
+            }
+
+            return base.VisitExtension(node);
+        }
+
+      
+
+
+
 
         internal Expression StripQuotes(Expression e)
         {
@@ -354,7 +417,7 @@ namespace Linqlite.Linq.SqlVisitor
                 else if (m is PropertyInfo pi)
                     value = pi.GetValue(value);
                 else
-                    throw new NotSupportedException("Unsupported member type");
+                    throw new NotSupportedException($"Type non supporté {m.GetType()}");
             }
 
             return value;
@@ -370,8 +433,12 @@ namespace Linqlite.Linq.SqlVisitor
                 var target = EvaluateMemberExpression(inner);
                 return GetMemberValue(target, node.Member);
             }
+            if(node.Expression is ParameterExpression)
+            {
 
-            throw new NotSupportedException("Unsupported captured variable structure");
+            }
+
+                throw new NotSupportedException($"Structure de variable non supportée {node?.Expression?.Type}");
         }
         private static object? GetMemberValue(object? target, MemberInfo member)
         {
@@ -379,7 +446,7 @@ namespace Linqlite.Linq.SqlVisitor
             {
                 FieldInfo f => f.GetValue(target),
                 PropertyInfo p => p.GetValue(target),
-                _ => throw new NotSupportedException($"Unsupported member: {member}")
+                _ => throw new NotSupportedException($"Membre non supporté: {member}")
             };
         }
 

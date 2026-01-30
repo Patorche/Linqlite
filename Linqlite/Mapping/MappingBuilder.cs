@@ -1,4 +1,5 @@
 ﻿using Linqlite.Attributes;
+using Linqlite.Linq.Relations;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using ZSpitz.Util;
@@ -8,15 +9,34 @@ namespace Linqlite.Mapping
 {
     public static class MappingBuilder
     {
-        public static List<EntityPropertyInfo> BuildMap(Type type, out List<IUniqueConstraint> groups)
+        public static List<EntityPropertyInfo> BuildMap(Type type, out List<IUniqueConstraint> groups, out List<IRelation> relations)
         {
             var list = new List<EntityPropertyInfo>();
             groups = new List<IUniqueConstraint>();
+            relations = new List<IRelation>();
             foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
                 bool isCol = false;
                 // 1. Propriété simple avec attribut
                 EntityPropertyInfo propertyInfo;
+
+                var nxn = prop.GetCustomAttribute<NxNAttribute>();
+                if (nxn != null)
+                {
+                    IRelation relation = new NxNRelation(type, prop.PropertyType.GetGenericArguments()[0], nxn.AssociationType, nxn.LeftKey, nxn.RightKey, prop);
+                   
+                    relations.Add(relation);
+                    continue; // on ignore leséventuels autres attributs qui n'ont pas de sens sur une relation nxn
+                }
+
+                var onexn = prop.GetCustomAttribute<OnexNAttribute>();
+                if (onexn != null)
+                {
+                    IRelation relation = new OnexNRelation(type, prop.PropertyType.GetGenericArguments()[0], onexn.TargetKey, prop);
+
+                    relations.Add(relation);
+                    continue; // on ignore leséventuels autres attributs qui n'ont pas de sens sur une relation nxn
+                }
 
                 var colAttr = prop.GetCustomAttribute<ColumnAttribute>(); 
                 if (colAttr == null) // Propriété non mappée
@@ -93,6 +113,8 @@ namespace Linqlite.Mapping
                     }
                 }
 
+               
+
                 if (isCol)
                     list.Add(propertyInfo);
             }
@@ -103,6 +125,8 @@ namespace Linqlite.Mapping
             }
             return list;
         }
+
+        
 
     }
 }

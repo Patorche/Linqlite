@@ -14,18 +14,18 @@ namespace Linqlite.Linq
 
         public IQueryable CreateQuery(Expression expression)
             => throw new InvalidOperationException(
-                $"The provider for type '{_type.Name}' has not been initialized.");
+                $"Le provider n'a pas été initialisé pour le type '{_type.Name}'.");
 
         public IQueryable<TElement> CreateQuery<TElement>(Expression expression)
             => throw new InvalidOperationException(
-                $"The provider for table '{_type.Name}' has not been initialized.");
+                $"TLe provider n'a pas été initialisé pour le type '{_type.Name}'.");
 
         public object? Execute(Expression expression)
             => throw new InvalidOperationException(
-                $"The provider for table '{_type.Name}' has not been initialized.");
+                $"Le provider n'a pas été initialisé pour le type '{_type.Name}'.");
 
         public TResult Execute<TResult>(Expression expression)
             => throw new InvalidOperationException(
-                $"The provider for table '{_type.Name}' has not been initialized.");
+                $"Le provider n'a pas été initialisé pour le type '{_type.Name}'.");
     }
 }

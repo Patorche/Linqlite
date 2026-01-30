@@ -127,11 +127,11 @@ namespace Linqlite.Linq.SqlVisitor
                     {
                         FieldInfo f => f.GetValue(target),
                         PropertyInfo p => p.GetValue(target),
-                        _ => throw new NotSupportedException($"Unsupported member: {m.Member}")
+                        _ => throw new NotSupportedException($"Membre non supporté : {m.Member}")
                     };
 
                 default:
-                    throw new NotSupportedException($"Unsupported expression: {expr?.NodeType}");
+                    throw new NotSupportedException($"Expression non supportée : {expr?.NodeType}");
             }
         }
 

@@ -1,4 +1,5 @@
 ﻿using Linqlite.Linq.SqlExpressions;
+using Linqlite.Mapping;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -33,6 +34,9 @@ namespace Linqlite.Linq.SqlGeneration
                 case SqlJoinExpression :
                     VisitJoin((SqlJoinExpression)source);
                     break;
+               /* case SqlWithRelationsExpression :
+                    Visit((SqlExpression)((SqlWithRelationsExpression)source).Source);
+                    break;*/
                 default: throw new NotSupportedException($"Source non supportée : {source.GetType()}" );
             }
         }
@@ -156,6 +160,10 @@ namespace Linqlite.Linq.SqlGeneration
         private void VisitJoin(SqlJoinExpression source)
         {
             Visit(source.Left);
+            if (source.JoinType == SqlJoinType.LeftOuter)
+            {
+                _sb.Append(" LEFT");
+            }
             _sb.Append(" JOIN ");
             Visit(source.Right);
             _sb.Append(" ON ");
@@ -180,8 +188,42 @@ namespace Linqlite.Linq.SqlGeneration
                 { 
                     _sb.Append(", ");
                 }
-                SqlColumnExpression colExpr = (SqlColumnExpression)col.Value;
-                _sb.Append($"{colExpr.Alias}.{colExpr.Column}");
+                if (col.Value is SqlColumnExpression)
+                {
+                    SqlColumnExpression colExpr = (SqlColumnExpression)col.Value;
+                    _sb.Append($"{colExpr.Alias}.{colExpr.Column} AS {colExpr.Alias}_{colExpr.Column}");
+                }
+                else if(col.Value is SqlEntityProjectionExpression)
+                {
+                    /* int j = 0;
+                     SqlEntityReferenceExpression colExpr = (SqlEntityReferenceExpression)col.Value;
+                     foreach (var column in EntityMap.Get(colExpr.Type).Columns)
+                     {
+                         if (j > 0)
+                         {
+                             _sb.Append(", ");
+                         }
+                         _sb.Append($"{colExpr.Alias}.{column.ColumnName}");
+                         j++;
+                     }*/
+                    VisitEntityProjection((SqlEntityProjectionExpression)col.Value);
+                }
+                else if(col.Value is SqlEntityReferenceExpression r)
+                {
+                    /* int j = 0;
+                     foreach (var column in EntityMap.Get(r.Type).Columns)
+                     {
+                         if (j > 0)
+                         {
+                             _sb.Append(", ");
+                         }
+                         _sb.Append($"{r.Alias}.{column.ColumnName}");
+                         j++;
+                     }*/
+
+                    _sb.Append(EntityMap.Get(r.Type).Projection(r.Alias));
+                    
+                }
                 i++;
             }
         }
@@ -195,7 +237,7 @@ namespace Linqlite.Linq.SqlGeneration
                     _sb.Append(", ");
                 }
                 var col = proj.Columns[i];
-                _sb.Append($"{col.Alias}.{col.Column}");
+                _sb.Append($"{col.Alias}.{col.Column} AS {col.Alias}_{col.Column}");
             }
         }
 

@@ -11,14 +11,21 @@ namespace Linqlite.Models
     public class PhotoCatalogue : SqliteEntity
     {
         private bool _isDeleted = false;
-
+       
+        [Column("id")]
+        [PrimaryKey(AutoIncrement = true)]
+        public long? Id { get; set; }
+       
         [Column("photo_id")]
         [ForeignKey(typeof(Photo), nameof(Photo.Id),true)]
+        
         public long? PhotoId { get; set; }
         [Column("lib_id")]
         [ForeignKey(typeof(Catalogue), nameof(Catalogue.Id), true)]
+        
         public long CatalogueId { get; set; }
         [Column("deleted")]
+       
         public bool IsDeleted 
         { 
             get => _isDeleted;

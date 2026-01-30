@@ -10,9 +10,9 @@ namespace Linqlite.Linq
 {
     public static class LinqliteTranslator
     {
-        public static string Translate<T>(IQueryable<T> query)
+        public static string Translate<T>(IQueryable<T> query, LinqliteProvider provider)
         {
-            SqlTreeBuilderVisitor visitor = new SqlTreeBuilderVisitor();
+            SqlTreeBuilderVisitor visitor = new SqlTreeBuilderVisitor(provider);
             SqlExpression exp =  visitor.Build(query.Expression);
             SqlGenerator gen = new SqlGenerator();
             return gen.Generate(exp);

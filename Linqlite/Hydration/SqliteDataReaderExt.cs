@@ -33,36 +33,62 @@ namespace Linqlite.Hydration
             return ordinal;
         }
 
-        public static object? GetValue(this SqliteDataReader reader, EntityPropertyInfo property)
+        /*   public static object? GetValue(this SqliteDataReader reader, EntityPropertyInfo property)
+           {
+
+               Type type = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+
+               return type switch
+               {
+                   Type t when t == typeof(string) => reader.GetString(property.ColumnName),
+                   Type t when t == typeof(int) => reader.GetInt(property.ColumnName),
+                   Type t when t == typeof(long) => reader.GetLong(property.ColumnName),
+                   Type t when t == typeof(double) => reader.GetDouble(property.ColumnName),
+                   Type t when t == typeof(bool) => reader.GetBool(property.ColumnName),
+                   Type t when t == typeof(DateTime) => reader.GetDate(property.ColumnName),
+                   Type t when t.IsSubclassOf(typeof(ObservableObject)) => reader.GetEntity(property),
+                   _ => throw new Exception($"Type incompatible : {type.FullName}")
+               };
+           }*/
+
+        public static object? GetValue(this SqliteDataReader reader, string alias, string columnName, Type targetType)
         {
+            var type = Nullable.GetUnderlyingType(targetType) ?? targetType;
+            string colAlias = alias + '_' + columnName;
 
-            Type type = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
-
+            if (!string.IsNullOrEmpty(columnName) && reader.IsDBNull(colAlias))
+                return null;
+            
             return type switch
             {
-                Type t when t == typeof(string) => reader.GetString(property.ColumnName),
-                Type t when t == typeof(int) => reader.GetInt(property.ColumnName),
-                Type t when t == typeof(long) => reader.GetLong(property.ColumnName),
-                Type t when t == typeof(double) => reader.GetDouble(property.ColumnName),
-                Type t when t == typeof(bool) => reader.GetBool(property.ColumnName),
-                Type t when t == typeof(DateTime) => reader.GetDate(property.ColumnName),
-                Type t when t.IsSubclassOf(typeof(ObservableObject)) => reader.GetEntity(property),
+                Type t when t == typeof(string) => reader.GetString(colAlias),
+                Type t when t == typeof(int) => reader.GetInt(colAlias),
+                Type t when t == typeof(long) => reader.GetLong(colAlias),
+                Type t when t == typeof(double) => reader.GetDouble(colAlias),
+                Type t when t == typeof(bool) => reader.GetBool(colAlias),
+                Type t when t == typeof(DateTime) => reader.GetDate(colAlias),
+
+                // Hydratation d'entité via alias prefixé
+                Type t when t.IsSubclassOf(typeof(ObservableObject))
+                    => reader.GetEntity(t, alias),
+
                 _ => throw new Exception($"Type incompatible : {type.FullName}")
             };
         }
 
-        
-        
-        
-        public static object GetEntity(this SqliteDataReader reader, EntityPropertyInfo property)
+
+
+
+
+        public static object GetEntity(this SqliteDataReader reader, Type t, string alias)
         {
-            Type t = property.PropertyType;
+            //Type t = property.PropertyType;
             var o = EntityDynamicFactory.CreateInstance(t);
 
-            var map = EntityMap.Get(property.PropertyType) ?? throw new UnreachableException("Tentative de construction d'une entité sur une calsle non mappée");
+            var map = EntityMap.Get(t) ?? throw new UnreachableException("Tentative de construction d'une entité sur une calsle non mappée");
             foreach (var column in map.Columns)
             {
-                column.PropertyInfo.SetValue(o, reader.GetValue(column));
+                column.PropertyInfo.SetValue(o, reader.GetValue(alias, column.ColumnName, column.PropertyType));
             }
             return o;
         }

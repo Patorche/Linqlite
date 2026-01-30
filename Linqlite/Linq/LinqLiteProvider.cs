@@ -1,13 +1,18 @@
-﻿using Linqlite.Linq.SqlExpressions;
+﻿using Linqlite.Linq.Relations;
+using Linqlite.Linq.SqlExpressions;
 using Linqlite.Linq.SqlGeneration;
 using Linqlite.Linq.SqlVisitor;
 using Linqlite.Logger;
+using Linqlite.Mapping;
 using Linqlite.Sqlite;
 using Microsoft.Data.Sqlite;
+using System.Collections;
 using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
 using System.Linq.Expressions;
+using System.Reflection;
+using System.Xml.Linq;
 
 namespace Linqlite.Linq
 {
@@ -18,6 +23,8 @@ namespace Linqlite.Linq
         private readonly Dictionary<object, PropertyChangedEventHandler> _handlers = [];
         private string _dbFilename = "";
         private SchemaManager _schemaManager;
+        private bool _isWithRelation = false;
+
 
         internal SqliteConnection? Connection = null;
 
@@ -128,11 +135,18 @@ namespace Linqlite.Linq
 
         public object? Execute(Expression expression)
         {
-            var termexp = new TerminalVisitor().Visit(expression);
-
+            _isWithRelation = false;
             var table = FindRootTable(expression);
             var mode = table?.TrackingModeOverride ?? DefaultTrackingMode;
-            
+
+            if (expression is SqlWithRelationsExpression)
+            {
+                _isWithRelation = true;
+                return ExecuteSequence(expression, mode);
+            }
+
+            var termexp = new TerminalVisitor().Visit(expression);
+           
 
             // 1. opérateur terminal ?
             if (termexp is MethodCallExpression mce && IsTerminalOperatorWithoutPredicate(mce))
@@ -147,12 +161,38 @@ namespace Linqlite.Linq
 
         private object? ExecuteSequence(Expression expression, TrackingMode mode)
         {
-            SqlTreeBuilderVisitor visitor = new SqlTreeBuilderVisitor();
-            SqlExpression exp = visitor.Build(expression);
+            SqlExpression? exp = null;
+            if (expression is not SqlExpression)
+
+            {
+                SqlTreeBuilderVisitor visitor = new(this);
+                exp = visitor.Build(expression);
+            }
+            else
+            {
+                exp = expression as SqlExpression;
+            }
+            if (exp is SqlGroupByExpression groupByExpression)
+            {
+                var method = typeof(LinqliteProvider).GetMethod(nameof(ExecuteGroupBy), BindingFlags.Instance | BindingFlags.NonPublic)!.MakeGenericMethod(groupByExpression.OriginalKeySelector.ReturnType, groupByExpression.ElementType);
+                //return ExecuteGroupBy(groupByExpression, mode);
+                var result = method.Invoke(this, new object[] { groupByExpression, mode }); 
+                return result;
+            }
+
+            if (exp is SqlSelectManyExpression sm) return ExecuteSelectMany(sm, mode);
+
+
             SqlGenerator gen = new SqlGenerator();
             var sql = gen.Generate(exp);
             Logger?.Log(sql);
             var elementType = TypeSystem.GetElementType(expression.Type);
+            var p = (SqlMemberProjectionExpression)((SqlSelectExpression)exp).Projection;
+            if (p != null) 
+            {
+                elementType = p.Type;
+            }
+
 
             if (IsEntityType(elementType))
             {
@@ -164,7 +204,85 @@ namespace Linqlite.Linq
             }
         }
 
-        
+        private IEnumerable<IGrouping<TKey, TElement>> ExecuteGroupBy<TKey, TElement>(SqlGroupByExpression expr, TrackingMode mode)
+        {
+            var source = ExecuteSequence(expr.Source, mode) as IEnumerable;
+
+            var keySelector = expr.KeySelector.Compile();
+            var elementSelector = expr.ElementSelector?.Compile();
+            var originalKeySelector = expr.OriginalKeySelector.Compile();
+
+            var select = (SqlSelectExpression)expr.Source;
+            var elementType = select.ElementType;
+
+            var groups = new Dictionary<object, IList>();
+            var listType = typeof(List<>).MakeGenericType(elementType);
+
+            foreach (var item in source!)
+            {
+                var key = keySelector.DynamicInvoke(item); // toujours la clé interne (Id)
+
+                var value = elementSelector != null
+                    ? elementSelector.DynamicInvoke(item)
+                    : item;
+
+                if (!groups.TryGetValue(key!, out var list))
+                {
+                    list = (IList)Activator.CreateInstance(listType)!;
+                    groups[key!] = list;
+                }
+
+                list.Add(value!);
+            }
+
+
+            var keyType = expr.KeySelector.ReturnType;
+            var groupingType = typeof(Grouping<,>).MakeGenericType(expr.OriginalTypeIsEntity ? expr.OriginalKeySelector.ReturnType : keyType, expr.ElementType);
+
+            foreach (var g in groups)
+            {
+                var internalKey = g.Key;
+                var values = g.Value;
+
+                object key;
+
+                if (expr.OriginalTypeIsEntity)
+                {
+                    key = originalKeySelector.DynamicInvoke(values[0]);
+                }
+                else
+                {
+                    key = internalKey;
+                }
+                var grouping = Activator.CreateInstance(groupingType, key, values);
+                yield return (IGrouping<TKey, TElement>)grouping;
+            }
+
+        }
+
+  
+
+        private IEnumerable ExecuteSelectMany(SqlSelectManyExpression expr, TrackingMode mode)
+        {
+            var source = ExecuteSequence(expr.Source, mode) as IEnumerable;
+
+            var colSel = expr.CollectionSelector.Compile();
+            var resSel = expr.ResultSelector.Compile();
+
+            foreach (var item in source!)
+            {
+                var collection = colSel.DynamicInvoke(item) as IEnumerable;
+
+                if (collection == null)
+                    continue;
+
+                foreach (var inner in collection)
+                    yield return resSel.DynamicInvoke(item, inner);
+            }
+        }
+
+
+
 
         private object? ExecuteTerminal(MethodCallExpression mce, TrackingMode mode)
         {
@@ -229,6 +347,13 @@ namespace Linqlite.Linq
             var result = Execute(expression);
             if(result == null && typeof(TResult).IsValueType == false) 
                 return default;
+
+            if (_isWithRelation)
+            {
+                SqlWithRelationsExpression with = (SqlWithRelationsExpression)expression;
+                var enumerable = ((IEnumerable)result).Cast<object>();
+                return (TResult)RootEntityExtractor.ExtractRootEntities(enumerable);
+            }
 
             return result == null
                 ? throw new UnreachableException("Une  erreur est survenue lors de l'analyse de l'arbre d'expresssion.")
@@ -295,16 +420,37 @@ namespace Linqlite.Linq
         public ITable<T> Table<T>(TrackingMode trackingMode = TrackingMode.Undefined) where T : SqliteEntity
         { 
             var table = new TableLite<T>(trackingMode);
+            table.Provider = this;
             Register(table); 
             return table; 
         }
 
-        // Gestion des queryable pour génération  script SQl
-        private void Register<T>(TableLite<T> query) where T : SqliteEntity
+        public IQueryableTableDefinition GetTable(Type t)
         {
-            query.Provider = this;
-            _queries.Add(query);
+            var table = _queries.SingleOrDefault(q => q.EntityType == t);
+            if(table == null)
+            {
+                var tb = Activator.CreateInstance(typeof(TableLite<>).MakeGenericType(t));
+                var property = tb.GetType().GetProperty("Provider");
+                if (property != null)
+                {
+                    property.SetValue(tb, this);
+                }
+                table = (IQueryableTableDefinition)tb;
+                Register(table);
+            }
+            return table;
         }
+
+        // Gestion des queryable pour génération  script SQl
+        private void Register(IQueryableTableDefinition query)
+        {
+            var table = _queries.SingleOrDefault(q => q.EntityType == query.EntityType);
+            if (table == null)
+                _queries.Add(query);
+        }
+
+
 
 
         public void EnsureTablesCreated()
@@ -347,4 +493,21 @@ namespace Linqlite.Linq
         Manual,
         Undefined
     }
+
+    public class Grouping<TKey, TElement> : IGrouping<TKey, TElement>
+    {
+        public TKey Key { get; }
+        private readonly IEnumerable<TElement> _items;
+
+        public Grouping(TKey key, IEnumerable<TElement> items)
+        {
+            Key = key;
+            _items = items;
+        }
+
+        public IEnumerator<TElement> GetEnumerator() => _items.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+
 }

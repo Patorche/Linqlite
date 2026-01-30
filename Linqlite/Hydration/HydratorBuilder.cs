@@ -1,7 +1,10 @@
-﻿using Linqlite.Linq.SqlExpressions;
+﻿using Linqlite.Linq;
+using Linqlite.Linq.Relations;
+using Linqlite.Linq.SqlExpressions;
 using Linqlite.Mapping;
 using Linqlite.Sqlite;
 using Microsoft.Data.Sqlite;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Common;
@@ -9,12 +12,15 @@ using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.PortableExecutable;
+using ZSpitz.Util;
 
 namespace Linqlite.Hydration
 {
     public static class HydratorBuilder
     {
-        public static T? GetEntity<T>(this SqliteDataReader reader) where T : SqliteEntity, new()
+        private static readonly Dictionary<(Type, object), object> _identityMap = new();
+
+        public static T? GetEntity<T>(this SqliteDataReader reader, string alias) where T : SqliteEntity, new()
         {
             try
             {
@@ -26,9 +32,37 @@ namespace Linqlite.Hydration
                 {
                     try
                     {
-                        column.PropertyInfo.SetValue(entity, reader.GetValue(column));
+                        column.PropertyInfo.SetValue(entity, reader.GetValue(alias, column.ColumnName, column.PropertyType));
                     }
                     catch (Exception) { }
+                }
+                entity.IsNew = false;
+                return entity;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        public static object GetEntity(Type t, SqliteDataReader reader, string alias)
+        {
+            try
+            {
+                var entity = (SqliteEntity)Activator.CreateInstance(t)!;
+                var map = EntityMap.Get(t);
+                if (map == null)
+                    return entity;
+                foreach (var column in map.Columns)
+                {
+                    try
+                    {
+                        column.PropertyInfo.SetValue(entity, reader.GetValue(alias, column.ColumnName, column.PropertyType));
+                    }
+                    catch (Exception) 
+                    {
+                        int i = 0;
+                    }
                 }
                 entity.IsNew = false;
                 return entity;
@@ -49,26 +83,243 @@ namespace Linqlite.Hydration
             primary.PropertyInfo.SetValue(entity, id);
         }
 
-        internal static T HydrateAnonymous<T>(SqliteDataReader reader)
+        internal static T HydrateLinqliteAnonymous<T>(SqliteDataReader reader, LinqliteProvider provider, SqlMemberProjectionExpression infos)
+        {
+            /*var type = typeof(T);
+            var ctor = type.GetConstructors().Single();
+            var parameters = ctor.GetParameters();*/
+
+            T instance = (T)Activator.CreateInstance(typeof(T));
+
+            var props = typeof(T).GetProperties();
+            var entities = new object?[props.Length];
+            int i = 0;
+            foreach (var prop in props)
+            {
+                var memberInfo = infos.Columns.Single(c => c.Key.Name == prop.Name);
+
+                object value;
+                if (IsEntity(prop.PropertyType))
+                {
+                    SqlEntityReferenceExpression re = memberInfo.Value as SqlEntityReferenceExpression;
+                    
+                    var pkey = EntityMap.Get(prop.PropertyType).GetPrimaryKey();
+
+                    var key = reader.GetValue(re.Alias, pkey.ColumnName, pkey.PropertyType);
+                    var identityKey = (prop.PropertyType, key);
+
+                    if (_identityMap.TryGetValue(identityKey, out var existing))
+                    {
+                        value = (SqliteEntity)existing;
+                    }
+                    else
+                    {
+                        value = GetEntity(prop.PropertyType, reader, re.Alias);
+                    }
+                    _identityMap[identityKey] = value;
+                    prop.SetValue(instance, value);
+                    entities[i] = value;
+                    i++;
+                }
+            }
+
+            
+            BuildRelations(entities, instance);
+            return instance;
+        }
+
+        internal static T HydrateAnonymous<T>(SqliteDataReader reader, LinqliteProvider provider, SqlMemberProjectionExpression infos)
         {
             var type = typeof(T);
             var ctor = type.GetConstructors().Single();
             var parameters = ctor.GetParameters();
 
+            // Toutes les valeurs SQL
             var values = new object[reader.FieldCount];
             reader.GetValues(values);
 
             var args = new object?[parameters.Length];
 
-            for (int i = 0; i < parameters.Length; i++)
+            int offset = 0;
+            int i = 0;
+            foreach (var (member, sqlExpr) in infos.Columns)
             {
-                var paramType = parameters[i].ParameterType;
-                var raw = values[i];
 
-                args[i] = ConvertValue(raw, paramType);
+                var paramType = parameters[i].ParameterType;
+
+                // Cas 1 : entité Linqlite
+                if (typeof(SqliteEntity).IsAssignableFrom(paramType))
+                {
+
+                    // Hydrater l'entité
+                    SqliteEntity? entity = null;
+                    SqlEntityProjectionExpression p = sqlExpr as SqlEntityProjectionExpression;
+                    string alias = p.Columns[i].Alias;
+
+                    var pkey = EntityMap.Get(paramType).GetPrimaryKey();
+                    var key = reader.GetValue(alias, pkey.ColumnName, pkey.PropertyType);
+                    var identityKey = (paramType, key);
+
+                    if (_identityMap.TryGetValue(identityKey, out var existing))
+                    {
+                        entity = (SqliteEntity)existing;
+                    }
+                    else
+                    {
+                        var columns = EntityMap.Get(paramType).Columns;
+                        entity = (SqliteEntity)Activator.CreateInstance(paramType)!;
+                        foreach (var c in columns)
+                        {
+                            c.PropertyInfo.SetValue(entity, reader.GetValue(alias, c.ColumnName, c.PropertyType));
+                        }
+                        if (key != null)
+                        {
+                            _identityMap[identityKey] = entity;
+                            // Attacher l'entité au provider (tracking)
+                            provider.Attach(entity, TrackingMode.AutoUpdate);
+                        }
+                    }
+                    args[i] = entity;
+                    i++;
+
+                    //offset += propCount;
+                }
+                else
+                {
+                    // Cas 2 : scalaire
+                    var raw = values[offset];
+                    args[i] = raw == DBNull.Value ? null : Convert.ChangeType(raw, paramType);
+                    offset++;
+                }
             }
 
-            return (T)ctor.Invoke(args);
+            var item = (T)ctor.Invoke(args);
+            return item;
+        }
+
+
+        private static void BuildRelations<T>(object?[] entities, T item)
+        {
+            if (entities.Any(e => e == null))
+                return;
+            foreach (var entity in entities) 
+            {
+                if (entity == null)
+                    return;
+                Type t = entity.GetType();
+                List<IRelation> relations = EntityMap.Get(t).Relations;
+                BuildRelations(entity,entities,relations, item);
+            }
+
+        }
+
+     
+
+        private static void BuildRelations<T>(object entity, object?[] entities, List<IRelation> relations, T item)
+        {
+            foreach (var relation in relations)
+            {
+                if (relation is NxNRelation nxn)
+                {
+                    BuildNxNRelation(nxn, entity, entities, item);
+                }
+                else if (relation is OnexNRelation onex)
+                {
+                    BuildOnexNRelation(onex, entity, entities, item);
+                }
+                
+            }
+        }
+
+        private static void BuildOnexNRelation<T>(OnexNRelation relation, object entity, object?[] entities, T? item)
+        {
+            var left = entities.FirstOrDefault(e => e.GetType() == relation.LeftType);
+            var right = entities.FirstOrDefault(e => e.GetType() == relation.TargetType);
+
+            if (left == null || right == null) return;
+
+            var leftPKey = EntityMap.Get(left.GetType()).GetPrimaryKey();
+            var leftId = left.GetType().GetProperty(leftPKey.PropertyInfo.Name).GetValue(left);
+
+            var rightId = right.GetType().GetProperty(relation.TargetKey).GetValue(right);
+
+            if (leftId == null || rightId == null) return;
+
+            if (Equals(leftId, rightId))
+            {
+                var prop = entity.GetType().GetProperty(relation.Property.Name);
+                var collection = prop.GetValue(entity);
+                if (collection is null)
+                {
+                    var collectionType = prop.PropertyType;
+
+                    if (collectionType.IsInterface)
+                    {
+                        var elementType = collectionType.GetGenericArguments()[0];
+                        collection = Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType));
+                    }
+                    else
+                    {
+                        collection = Activator.CreateInstance(collectionType);
+                    }
+
+                    prop.SetValue(entity, collection);
+                }
+                var addMethod = collection.GetType().GetMethod("Add");
+                addMethod.Invoke(collection, new[] { right });
+            }
+        }
+
+        private static void BuildNxNRelation<T>(NxNRelation relation, object entity, object?[] entities, T? item)
+        {
+            var left = entities.FirstOrDefault(e => e.GetType() == relation.LeftType);
+            var right = entities.FirstOrDefault(e => e.GetType() == relation.RightType);
+
+            if (left == null || right == null) return;
+
+            var leftPKey = EntityMap.Get(left.GetType()).GetPrimaryKey();
+            var rightPKey = EntityMap.Get(right.GetType()).GetPrimaryKey();
+
+            var leftId = left.GetType().GetProperty(leftPKey.PropertyInfo.Name).GetValue(left);
+            var rightId = right.GetType().GetProperty(rightPKey.PropertyInfo.Name).GetValue(right);
+
+            if (leftId == null || rightId == null) return;
+
+            var props = item.GetType().GetProperties();
+            var join = props.FirstOrDefault(p => p.PropertyType == relation.AssociationType)?.GetValue(item);
+            if (join != null)
+            {
+                var joinLeftId = join.GetType().GetProperty(relation.AssociationLeftKey).GetValue(join);
+                var joinRightId = join.GetType().GetProperty(relation.AssociationRightKey).GetValue(join);
+
+                if (Equals(joinLeftId, leftId) && Equals(joinRightId, rightId))
+                {
+                    // On ajoute la relation
+                    var prop = entity.GetType().GetProperty(relation.Property.Name);
+                    var collection = prop.GetValue(entity);
+
+                    if (collection is null)
+                    {
+                        var collectionType = prop.PropertyType;
+
+                        if (collectionType.IsInterface)
+                        {
+                            var elementType = collectionType.GetGenericArguments()[0];
+                            collection = Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType));
+                        }
+                        else
+                        {
+                            collection = Activator.CreateInstance(collectionType);
+                        }
+
+                        prop.SetValue(entity, collection);
+                    }
+                    //((IList)collection).Add(right);
+                    var addMethod = collection.GetType().GetMethod("Add");
+                    addMethod.Invoke(collection, new[] { right });
+
+                }
+            }
         }
 
         internal static object? ConvertValue(object raw, Type targetType)
@@ -186,7 +437,7 @@ namespace Linqlite.Hydration
             return targetType.IsAssignableFrom(value.GetType())
                 || Nullable.GetUnderlyingType(targetType) != null;
         }
-
+        private static bool IsEntity(Type t) => typeof(SqliteEntity).IsAssignableFrom(t);
 
 
     }

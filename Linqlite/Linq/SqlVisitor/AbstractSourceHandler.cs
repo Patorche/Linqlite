@@ -97,7 +97,7 @@ namespace Linqlite.Linq.SqlVisitor
             if (nex == null)
                 throw new UnreachableException("Tentative d'ajout d'une projection null !");
 
-            var columns = nex.Arguments.Select(arg => (SqlExpression)builder.Visit(arg)).ToList();
+            //var columns = nex.Arguments.Select(arg => (SqlExpression)builder.Visit(arg)).ToList();
 
             var members = new Dictionary<MemberInfo, SqlExpression>();
             for (int i = 0; i < nex.Arguments.Count; i++)
@@ -108,34 +108,19 @@ namespace Linqlite.Linq.SqlVisitor
 
                 if (member == null || sqlExpr == null)
                     throw new UnreachableException("Tentative d'ajout d'une projection null !");
-                members.Add(member, sqlExpr);
+                if(sqlExpr is SqlEntityReferenceExpression entityProjection)
+                {
+                    var map = EntityMap.Get(entityProjection.Type);
+                    var eCols = new List<SqlColumnExpression>();
+                    var projCols = GetFullProjection(entityProjection.Type, entityProjection.Alias);
+                    var proj = new SqlEntityProjectionExpression(projCols, entityProjection.Type);
+                    members.Add(member, proj);
+                }
+                else
+                    members.Add(member, sqlExpr);
             }
 
             return new SqlMemberProjectionExpression(members, nex.Type);
         }
-
-     /*   private SqlMemberProjectionExpression HandleCallProjection(MethodCallExpression call, SqlTreeBuilderVisitor builder)
-        {
-            var members = new Dictionary<MemberInfo, SqlExpression>();
-
-            // On récupère les paramètres de la méthode
-            var parameters = call.Method.GetParameters();
-
-            for (int i = 0; i < call.Arguments.Count; i++)
-            {
-                var arg = call.Arguments[i];
-                var sqlExpr = builder.Visit(arg) as SqlExpression;
-                if (sqlExpr == null)
-                    throw new UnreachableException("Projection null dans un appel de méthode");
-
-                var member = parameters[i];
-                members.Add(member, sqlExpr);
-            }
-
-            return new SqlMemberProjectionExpression(members, call.Type);
-        }
-     */
-
-
     }
 }

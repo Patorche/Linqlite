@@ -80,6 +80,9 @@ namespace Linqlite.Models
             }
         }
 
+        [NxN(AssociationType = typeof(PhotoKeyWords), LeftKey = nameof(PhotoKeyWords.PhotoId), RightKey = nameof(PhotoKeyWords.KeyWordId))]
+        public List<KeyWord> KeyWords { get; set; }
+
         [Column()] 
         public CameraSetting CameraSetting { get; set; }
 

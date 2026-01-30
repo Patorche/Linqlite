@@ -7,15 +7,15 @@ namespace Linqlite.Linq
 {
     public interface ITable<T> : IQueryable<T> { }
 
-    internal class TableLite<T> : ITable<T>, IQueryableTableDefinition
+    internal class TableLite<T> : ITable<T>, IQueryable<T>, IQueryableTableDefinition
     {
         private IQueryProvider _provider = new NullQueryProvider(typeof(T));
         private TrackingMode _trackingmode = TrackingMode.Undefined;
 
         public TrackingMode TrackingModeOverride => _trackingmode;
-        
-        public Expression Expression { get; private set; }
-        
+
+        public Expression Expression { get; set; }
+
         public Type ElementType => typeof(T);
         
         public Type EntityType => typeof(T);
@@ -25,6 +25,13 @@ namespace Linqlite.Linq
             get => _provider;
             set => _provider = value;
 
+        }
+
+
+        public TableLite() 
+        { 
+            _trackingmode = TrackingMode.Undefined;
+            Expression = Expression.Constant(this);
         }
 
         public TableLite(TrackingMode trackingModeOverride = TrackingMode.Undefined)

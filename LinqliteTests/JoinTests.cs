@@ -17,7 +17,7 @@ namespace LinqliteTests
             var photos = provider.Table<Photo>();
             var photocatalogue = provider.Table<PhotoCatalogue>();
 
-            var sql = SqlFor(photos.Join(photocatalogue, p => p.Id, pc => pc.PhotoId, (p, pc) => new { p, pc }).Where(q => q.pc.IsDeleted == false));
+            var sql = SqlFor(photos.Join(photocatalogue, p => p.Id, pc => pc.PhotoId, (p, pc) => new { p, pc }).Where(q => q.pc.IsDeleted == false), provider);
 
             
      

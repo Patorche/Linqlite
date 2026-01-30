@@ -15,7 +15,7 @@ namespace Linqlite.Hydration
         {
             var ctor = typeof(T).GetConstructor(Type.EmptyTypes);
             if (ctor == null)
-                throw new InvalidOperationException($"Type {typeof(T)} must have a parameterless constructor.");
+                throw new InvalidOperationException($"Type {typeof(T)}doit avoir un constructeur sans paramètre.");
 
             // Utilise Expression pour compiler un délégué rapide
             var newExpr = Expression.New(ctor);

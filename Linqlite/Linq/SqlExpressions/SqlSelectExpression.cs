@@ -13,13 +13,14 @@ namespace Linqlite.Linq.SqlExpressions
         internal SqlExpression? Where { get; set; }
         internal AbstractSqlProjectionExpression? Projection { get; private set; }
         internal IReadOnlyList<SqlOrderByExpression> Orders => _orders;
-        
+        public Type ElementType { get; set; }
+
         public int? Offset { get; set; }
         public int? Limit { get; set; }
 
         public SqlSelectExpression(Type type) : base(type)
         {
-         
+            ElementType = type;
         }      
 
         internal void AddOrder(SqlExpression predicate, bool ascending = true)

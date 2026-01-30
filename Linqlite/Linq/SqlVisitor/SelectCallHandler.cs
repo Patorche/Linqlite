@@ -13,12 +13,14 @@ namespace Linqlite.Linq.SqlVisitor
         {
             var source = (SqlExpression)builder.Visit(node.Arguments[0]);
             SqlSelectExpression selectExpression = SqlExpressionHelper.CreateSqlSelectExpression(node, source, builder, true);
+            
             var oldSource = builder.GetCurrentSource();
             builder.SetCurrentSource(source);
             
             var lambda = (LambdaExpression)builder.StripQuotes(node.Arguments[1]); 
             var projection = HandleProjection(lambda.Body, builder, selectExpression); 
-            selectExpression.SetProjection(projection); 
+            selectExpression.SetProjection(projection);
+            selectExpression.ElementType = projection.Type;
             builder.SetCurrentSource(oldSource); 
             return source;
         }

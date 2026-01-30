@@ -32,7 +32,7 @@ namespace Linqlite.Linq
             {
                 while (reader.Read())
                 {
-                    T entity = HydratorBuilder.GetEntity<T>(reader) ?? throw new InvalidDataException("Entité null retournée");
+                    T entity = HydratorBuilder.GetEntity<T>(reader, "t0") ?? throw new InvalidDataException("Entité null retournée");
                     provider?.Attach(entity, trackingMode);
                     yield return entity;
                 }
@@ -44,12 +44,44 @@ namespace Linqlite.Linq
             }
         }
 
+        //private void ConstructRelations(IEnumerable? source, Type elementType)
+        //{
+        //    foreach (Relation relation in EntityMap.Get(elementType)?.Relations)
+        //    {
+        //        var left = source.FirstOrDefault(e => e.GetType() == relation.LeftType);
+        //        var right = entities.FirstOrDefault(e => e.GetType() == relation.RightType);
+
+        //        if (left != null && right != null)
+        //        {
+        //            // On récupère les clés
+        //            var leftId = left.GetType().GetProperty(relation.LeftKey).GetValue(left);
+        //            var rightId = right.GetType().GetProperty(relation.RightKey).GetValue(right);
+
+        //            // On récupère la ligne de jointure
+        //            var join = props.FirstOrDefault(p => p.PropertyType == relation.AssociationType)?.GetValue(item);
+
+        //            if (join != null)
+        //            {
+        //                var joinLeftId = join.GetType().GetProperty("PhotoId").GetValue(join);
+        //                var joinRightId = join.GetType().GetProperty("KeywordId").GetValue(join);
+
+        //                if (Equals(joinLeftId, leftId) && Equals(joinRightId, rightId))
+        //                {
+        //                    // On ajoute la relation
+        //                    var collection = left.GetType().GetProperty("Keywords").GetValue(left) as IList;
+        //                    collection.Add(right);
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
+
 
         public static long InsertOrGetId(T entity, LinqliteProvider provider, TrackingMode trackingMode)
         {
             CheckConnection(provider.Connection);
 
-            var map = EntityMap.Get(typeof(T)) ?? throw new UnreachableException("Tentaive d'insertion d'un objet non mappé");
+            var map = EntityMap.Get(typeof(T)) ?? throw new UnreachableException("Tentative d'insertion d'un objet non mappé");
 
             IUniqueConstraint? upsertKey = map.GetUpsertKey();
             if(upsertKey == null)
@@ -85,7 +117,7 @@ namespace Linqlite.Linq
         {
             CheckConnection(provider.Connection);
 
-            var map = EntityMap.Get(typeof(T)) ?? throw new UnreachableException("Tentaive d'insertion d'un objet non mappé");
+            var map = EntityMap.Get(typeof(T)) ?? throw new UnreachableException("Tentative d'insertion d'un objet non mappé");
 
             StringBuilder sb = new StringBuilder();
             sb.Append($"INSERT INTO {map.TableName}");
@@ -122,7 +154,7 @@ namespace Linqlite.Linq
         {
             CheckConnection(provider.Connection);
 
-            var map = EntityMap.Get(typeof(T)) ?? throw new UnreachableException("Tentaive de suppression d'un objet non mappé");
+            var map = EntityMap.Get(typeof(T)) ?? throw new UnreachableException("Tentative de suppression d'un objet non mappé");
             var table = map.TableName;
             var key = map.GetPrimaryKey();
 
@@ -149,7 +181,7 @@ namespace Linqlite.Linq
 
             if (string.IsNullOrEmpty(property)) return;
 
-            var map = EntityMap.Get(entity.GetType()) ?? throw new UnreachableException("Tentaive de mise à jour d'un objet non mappé");
+            var map = EntityMap.Get(entity.GetType()) ?? throw new UnreachableException("Tentative de mise à jour d'un objet non mappé");
             var tableName = map.TableName;
             var key = map.GetPrimaryKey();
 

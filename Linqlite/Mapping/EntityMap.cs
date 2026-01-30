@@ -1,4 +1,5 @@
 ﻿using Linqlite.Attributes;
+using Linqlite.Linq.Relations;
 using Linqlite.Sqlite;
 using System;
 using System.Collections.Concurrent;
@@ -15,13 +16,19 @@ namespace Linqlite.Mapping
         private static ConcurrentDictionary<Type, EntityMap> EntityMaps = new();
 
         public List<EntityPropertyInfo> Columns;
+        public List<IRelation> Relations;
         public string TableName { get; }
         public bool IsFromTable { get => !string.IsNullOrWhiteSpace(TableName); }
         public List<IUniqueConstraint> UniqueConstraints;
         private EntityMap(Type type) 
         { 
             TableName = GetTablename(type);
-            Columns = MappingBuilder.BuildMap(type, out UniqueConstraints);
+            Columns = MappingBuilder.BuildMap(type, out UniqueConstraints, out Relations);
+        }
+
+        public static bool IsEntityType(Type type)
+        {
+            return typeof(SqliteEntity).IsAssignableFrom(type);
         }
 
         public string Column(string propertyNamePath)
@@ -104,14 +111,14 @@ namespace Linqlite.Mapping
             return list;
         }
 
-        internal string Projection(string alias)
+        public string Projection(string alias)
         {
             List<string> cols = new List<string>();
 
             foreach (var col in Columns) {
                 if (!string.IsNullOrEmpty(col.ColumnName))
                 {
-                    cols.Add($"{alias}.{col.ColumnName}");
+                    cols.Add($"{alias}.{col.ColumnName} AS {alias}_{col.ColumnName}");
                 }
                 else
                 {

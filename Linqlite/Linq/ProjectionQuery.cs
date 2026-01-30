@@ -28,8 +28,10 @@ namespace Linqlite.Linq
             while (reader.Read())
             {
                 T? e = default;
-                if(IsAnonymousType(typeof(T)))
-                    e = HydratorBuilder.HydrateAnonymous<T>(reader);
+                if(IsCSharpAnonymousType(typeof(T)))
+                    e = HydratorBuilder.HydrateAnonymous<T>(reader,provider, infos);
+                if (IsLinqliteAnonymousType(typeof(T)))
+                    e = HydratorBuilder.HydrateLinqliteAnonymous<T>(reader, provider, infos);
                 else if (IsBaseType(typeof(T))){
                     e = (T)reader.GetValue(0);
                 }
@@ -44,7 +46,13 @@ namespace Linqlite.Linq
             return list;
         }
 
-        private static bool IsAnonymousType(Type t) => t.Name.Contains("AnonymousType") && t.IsSealed && t.IsNotPublic;
+        private static bool IsCSharpAnonymousType(Type t) => (t.Name.Contains("AnonymousType") && t.IsSealed && t.IsNotPublic);
+        private static bool IsLinqliteAnonymousType(Type t)
+        {
+            if(t.Name.Contains("Anon_"))
+                return true;
+            return false;
+        }
         private static bool IsBaseType(Type t)
         {
             t = Nullable.GetUnderlyingType(t) ?? t; 
@@ -57,7 +65,7 @@ namespace Linqlite.Linq
                        t == typeof(byte[]);
         }
 
-        private static bool IsDto(Type t) => !IsBaseType(t) && !IsAnonymousType(t);
+        private static bool IsDto(Type t) => !IsBaseType(t) && !IsCSharpAnonymousType(t);
 
     }
 }

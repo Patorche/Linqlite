@@ -38,7 +38,7 @@ namespace LinqliteTests
             //var result = photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == catalogue.Id && !x.c.IsDeleted).OrderBy(x => x.p.TakenDate).Select(x => x.p).ToList();
             long cid = catalogue.Id;
             var query = photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == cid && !x.c.IsDeleted).OrderBy(x => x.p.TakenDate).Select(x => x.p);
-            string res = SqlFor(query);
+            string res = SqlFor(query, provider);
                                 
             Assert.Equal("SELECT t0.id, t0.filename, t0.takendate, t0.folder, t0.width, t0.height, t0.type, t0.author, t0.camera, t0.make, t0.latitude, t0.longitude, t0.city, t0.country, t0.iso, t0.aperture, t0.shutterspeed, t0.focal, t0.rate, t0.thumbwidth, t0.thumbheight, t0.orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON (t0.id = t1.photo_id) WHERE ((t1.lib_id = @v0) AND (NOT t1.deleted)) ORDER BY t0.takendate ASC",
                 res);
@@ -66,7 +66,7 @@ namespace LinqliteTests
             //var result = photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == catalogue.Id && !x.c.IsDeleted).OrderBy(x => x.p.TakenDate).Select(x => x.p).ToList();
             
             var query = photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == catalogue.Id && x.c.IsDeleted == true).OrderBy(x => x.p.TakenDate).Select(x => x.p);
-            string res = SqlFor(query);
+            string res = SqlFor(query, provider);
 
             Assert.Equal("SELECT t0.id, t0.filename, t0.takendate, t0.folder, t0.width, t0.height, t0.type, t0.author, t0.camera, t0.make, t0.latitude, t0.longitude, t0.city, t0.country, t0.iso, t0.aperture, t0.shutterspeed, t0.focal, t0.rate, t0.thumbwidth, t0.thumbheight, t0.orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON (t0.id = t1.photo_id) WHERE ((t1.lib_id = @v0) AND (t1.deleted = TRUE)) ORDER BY t0.takendate ASC",
                 res);

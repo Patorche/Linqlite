@@ -6,42 +6,10 @@ using System.Text;
 
 namespace Linqlite.Linq.SqlVisitor
 {
-    internal class JoinCallHandler : AbstractSourceHandler, IMethodCallHandler
+    internal class JoinCallHandler : AbstractSourceHandler
     {
-        /*  public SqlExpression Handle(MethodCallExpression node, SqlTreeBuilderVisitor builder)
-          {
-              var left = (SqlExpression)builder.Visit(node.Arguments[0]);
-              var right = (SqlExpression)builder.Visit(node.Arguments[1]);
 
-              var alias = builder.GetNextAlias();
-              var join = new SqlJoinExpression(left, right, "INNER", alias);
-              builder.SetCurrentSource(join);
-
-              var outerKeyLambda = (LambdaExpression)builder.StripQuotes(node.Arguments[2]);
-              var innerKeyLambda = (LambdaExpression)builder.StripQuotes(node.Arguments[3]);
-
-
-
-              var leftKey = (SqlExpression)builder.Visit(builder.StripConvert(outerKeyLambda.Body));
-              var rightKey = (SqlExpression)builder.Visit(builder.StripConvert(innerKeyLambda.Body));
-
-              var on = new SqlBinaryExpression(leftKey, "=", rightKey);
-              join.SetOn(on);
-
-
-              // 6. Extraire le resultSelector
-              var resultSelector = (LambdaExpression)builder.StripQuotes(node.Arguments[4]);
-
-              // 7. Visiter la projection
-              var projection = HandleProjection(builder.StripConvert(resultSelector.Body), builder);
-
-              // 8. Appliquer la projection à la jointure
-              //join.SetProjection(projection);
-
-              return join;
-          }*/
-
-        public SqlExpression Handle(MethodCallExpression node, SqlTreeBuilderVisitor builder)
+        public SqlExpression Handle(MethodCallExpression node, SqlTreeBuilderVisitor builder, SqlJoinType joinType)
         {
             // arguments : source, inner, outerKeySelector, innerKeySelector, resultSelector
             var outerSource = (SqlSourceExpression)builder.Visit(node.Arguments[0]);
@@ -75,7 +43,7 @@ namespace Linqlite.Linq.SqlVisitor
                 outerSource,
                 innerSource,
                 on,
-                SqlJoinType.Inner,
+                joinType,
                 alias,
                 outerSource.Type);
 

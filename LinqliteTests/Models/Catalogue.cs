@@ -37,6 +37,12 @@ namespace Linqlite.Models
             set => SetProperty(ref _totalCount, value);
         }
 
+        [OnexN(TargetKey = nameof(Collection.CatalogueId))]
+        public List<Collection> Collections { get; set; }
+
+        [NxN(AssociationType = typeof(PhotoCatalogue), LeftKey = nameof(PhotoCatalogue.CatalogueId), RightKey = nameof(PhotoCatalogue.PhotoId))]
+        public List<Photo> Photos{ get; set; }
+
         public Catalogue() 
         {
             _name = string.Empty;

@@ -14,7 +14,7 @@ namespace LinqliteTests
         {
             var provider = new LinqliteProvider("E:\\Dev\\Photolab.db\\photolab.db");
             var catalogues = provider.Table<Catalogue>();
-            var sql = SqlFor(catalogues);
+            var sql = SqlFor(catalogues, provider);
             Assert.Equal("SELECT t0.* FROM LIBRARY t0", sql);
         }
 
@@ -24,7 +24,7 @@ namespace LinqliteTests
             var provider = new LinqliteProvider("E:\\Dev\\Photolab.db\\photolab.db");
             var catalogues = provider.Table<Catalogue>();
 
-            var sql = SqlFor(catalogues.Where(c => c.Id == 7));
+            var sql = SqlFor(catalogues.Where(c => c.Id == 7), provider);
             Assert.Equal("SELECT t0.* FROM LIBRARY t0 WHERE (t0.id = 7)", sql);
 
         }
@@ -35,7 +35,7 @@ namespace LinqliteTests
             var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
-            var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder));
+            var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder), provider);
             Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename ASC, t0.folder ASC", sql);
         }
 
@@ -45,7 +45,7 @@ namespace LinqliteTests
             var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
-            var sql = SqlFor(photos.Where(p => p.Id > 100).OrderByDescending(p => p.Filename));
+            var sql = SqlFor(photos.Where(p => p.Id > 100).OrderByDescending(p => p.Filename), provider);
             Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename DESC", sql);
         }
 
@@ -55,7 +55,7 @@ namespace LinqliteTests
             var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
-            var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder).ThenByDescending(p => p.Width));
+            var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder).ThenByDescending(p => p.Width), provider);
             Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename ASC, t0.folder ASC, t0.width DESC", sql);
         }
 
@@ -65,7 +65,7 @@ namespace LinqliteTests
             var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
-            var sql = SqlFor(photos.Take(100));
+            var sql = SqlFor(photos.Take(100), provider);
             Assert.Equal("SELECT t0.* FROM PHOTO t0 LIMIT 100", sql);
         }
 
@@ -75,7 +75,7 @@ namespace LinqliteTests
             var provider = new LinqliteProvider();
             var photos = provider.Table<Photo>();
 
-            var sql = SqlFor(photos.Skip(100));
+            var sql = SqlFor(photos.Skip(100), provider);
             Assert.Equal("SELECT t0.* FROM PHOTO t0 LIMIT -1 OFFSET 100", sql);
         }
 
@@ -90,7 +90,7 @@ namespace LinqliteTests
                 .OrderBy(x => x.Filename)
                 .ThenBy(x => x.Id);
 
-            var sql = SqlFor(query);
+            var sql = SqlFor(query, provider);
 
             Assert.Equal(
                 "SELECT t0.id, t0.filename FROM PHOTO t0 ORDER BY t0.filename ASC, t0.id ASC",
@@ -111,7 +111,7 @@ namespace LinqliteTests
                 .OrderBy(x => x.p.Filename)
                 .ThenBy(x => x.c.CreationDate);
 
-            var sql = SqlFor(query);
+            var sql = SqlFor(query, provider);
 
             Assert.Equal(
                 "SELECT t0.* FROM PHOTO t0 JOIN LIBRARY t1 ON (t0.id = t1.id) ORDER BY t0.filename ASC, t1.creation_date ASC",
@@ -133,7 +133,7 @@ namespace LinqliteTests
                 .ThenBy(x => x.Id)
                 .ThenBy(x => x.cId);
 
-            var sql = SqlFor(query);
+            var sql = SqlFor(query, provider);
 
             Assert.Equal(
                 "SELECT t0.id, t0.filename, t1.id FROM PHOTO t0 JOIN LIBRARY t1 ON (t0.id = t1.id) ORDER BY t0.filename ASC, t0.id ASC, t1.id ASC",

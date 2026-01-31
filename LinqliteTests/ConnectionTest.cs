@@ -1,5 +1,6 @@
 ﻿using Linqlite.Linq;
 using Linqlite.Models;
+using Linqlite.Sqlite;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -14,7 +15,7 @@ namespace LinqliteTests
         [Fact]
         public void ConnectionTest1()
         {
-            var provider = new LinqliteProvider(connectionString);
+            var provider = new LinqliteProvider(connectionString, SqlitePragmas.Preset.InMemoryFast);
             var photos = provider.Table<Photo>(TrackingMode.Manual);
 
             var query = photos.Where(p => p.Id >0).ToList();
@@ -23,7 +24,7 @@ namespace LinqliteTests
             {
                 Console.WriteLine(e);
             }
-
+            
         }
 
         [Fact]
@@ -40,7 +41,7 @@ namespace LinqliteTests
             var query = photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == cid && !x.c.IsDeleted).OrderBy(x => x.p.TakenDate).Select(x => x.p);
             string res = SqlFor(query, provider);
                                 
-            Assert.Equal("SELECT t0.id, t0.filename, t0.takendate, t0.folder, t0.width, t0.height, t0.type, t0.author, t0.camera, t0.make, t0.latitude, t0.longitude, t0.city, t0.country, t0.iso, t0.aperture, t0.shutterspeed, t0.focal, t0.rate, t0.thumbwidth, t0.thumbheight, t0.orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON (t0.id = t1.photo_id) WHERE ((t1.lib_id = @v0) AND (NOT t1.deleted)) ORDER BY t0.takendate ASC",
+            Assert.Equal("SELECT t0.id AS t0_id, t0.filename AS t0_filename, t0.takendate AS t0_takendate, t0.folder AS t0_folder, t0.width AS t0_width, t0.height AS t0_height, t0.type AS t0_type, t0.author AS t0_author, t0.camera AS t0_camera, t0.make AS t0_make, t0.latitude AS t0_latitude, t0.longitude AS t0_longitude, t0.city AS t0_city, t0.country AS t0_country, t0.iso AS t0_iso, t0.aperture AS t0_aperture, t0.shutterspeed AS t0_shutterspeed, t0.focal AS t0_focal, t0.rate AS t0_rate, t0.thumbwidth AS t0_thumbwidth, t0.thumbheight AS t0_thumbheight, t0.orientation AS t0_orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON (t0.id = t1.photo_id) WHERE ((t1.lib_id = @v0) AND (NOT t1.deleted)) ORDER BY t0.takendate ASC",
                 res);
             await foreach(var p in query.ToEnumerableAsync())
             {
@@ -68,7 +69,7 @@ namespace LinqliteTests
             var query = photos.Join(photoCatalogue, p => p.Id, c => c.PhotoId, (p, c) => new { p, c }).Where(x => x.c.CatalogueId == catalogue.Id && x.c.IsDeleted == true).OrderBy(x => x.p.TakenDate).Select(x => x.p);
             string res = SqlFor(query, provider);
 
-            Assert.Equal("SELECT t0.id, t0.filename, t0.takendate, t0.folder, t0.width, t0.height, t0.type, t0.author, t0.camera, t0.make, t0.latitude, t0.longitude, t0.city, t0.country, t0.iso, t0.aperture, t0.shutterspeed, t0.focal, t0.rate, t0.thumbwidth, t0.thumbheight, t0.orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON (t0.id = t1.photo_id) WHERE ((t1.lib_id = @v0) AND (t1.deleted = TRUE)) ORDER BY t0.takendate ASC",
+            Assert.Equal("SELECT t0.id AS t0_id, t0.filename AS t0_filename, t0.takendate AS t0_takendate, t0.folder AS t0_folder, t0.width AS t0_width, t0.height AS t0_height, t0.type AS t0_type, t0.author AS t0_author, t0.camera AS t0_camera, t0.make AS t0_make, t0.latitude AS t0_latitude, t0.longitude AS t0_longitude, t0.city AS t0_city, t0.country AS t0_country, t0.iso AS t0_iso, t0.aperture AS t0_aperture, t0.shutterspeed AS t0_shutterspeed, t0.focal AS t0_focal, t0.rate AS t0_rate, t0.thumbwidth AS t0_thumbwidth, t0.thumbheight AS t0_thumbheight, t0.orientation AS t0_orientation FROM PHOTO t0 JOIN PHOTO_LIB t1 ON (t0.id = t1.photo_id) WHERE ((t1.lib_id = @v0) AND (t1.deleted = TRUE)) ORDER BY t0.takendate ASC",
                 res);
             List<Photo> list = query.ToList();
         }

@@ -124,8 +124,8 @@ namespace Linqlite.Linq.SqlGeneration
             // Projection
             if (source.Projection != null)
                 VisitExpression(source.Projection);
-            else
-                _sb.Append(source.From.Alias).Append(".*");
+            else // A remplacer par la projection complète de l'entité //1_sb.Append(source.From.Alias).Append(".*");
+                _sb.Append(EntityMap.Get(source.ElementType).Projection(source.From.Alias));
 
             _sb.AppendLine();
             _sb.Append("FROM ");

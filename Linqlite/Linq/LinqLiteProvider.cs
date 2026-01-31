@@ -9,6 +9,7 @@ using Microsoft.Data.Sqlite;
 using System.Collections;
 using System.ComponentModel;
 using System.Data;
+using System.Data.Common;
 using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -18,12 +19,14 @@ namespace Linqlite.Linq
 {
     public class LinqliteProvider : IQueryProvider, IDisposable
     {
+
         private static readonly HashSet<string> _terminalOperators = [.. Enum.GetNames<TerminalOperator>()];
         private readonly List<IQueryableTableDefinition> _queries = [];
         private readonly Dictionary<object, PropertyChangedEventHandler> _handlers = [];
         private string _dbFilename = "";
         private SchemaManager _schemaManager;
         private bool _isWithRelation = false;
+        private SqlitePragmas _pragmas;
 
 
         internal SqliteConnection? Connection = null;
@@ -46,9 +49,19 @@ namespace Linqlite.Linq
             _schemaManager = new SchemaManager(this);
         }
 
-        public LinqliteProvider(string dbFilename)
+        public LinqliteProvider(string dbFilename, Action<SqlitePragmas>? configure = null)
         {
             DbFileName = dbFilename;
+            _pragmas = new SqlitePragmas(); 
+            configure?.Invoke(_pragmas);
+            _schemaManager = new SchemaManager(this);
+            Connect();
+        }
+
+        public LinqliteProvider(string dbFilename, SqlitePragmas pragmas)
+        {
+            DbFileName = dbFilename;
+            _pragmas = pragmas;
             _schemaManager = new SchemaManager(this);
             Connect();
         }
@@ -62,10 +75,10 @@ namespace Linqlite.Linq
             SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_sqlite3());
             Connection = new SqliteConnection(@$"Data Source={DbFileName}");
             Connection.Open();
-            Optimize();
+            ApplyPragmas();
         }
 
-        public void Optimize()
+       /* public void Optimize()
         {
             using (var command = Connection?.CreateCommand())
             {
@@ -76,7 +89,7 @@ namespace Linqlite.Linq
                     PRAGMA temp_store = MEMORY;";
                 command?.ExecuteNonQuery();
             }
-        }
+        }*/
 
         public IQueryable CreateQuery(Expression expression)
         {
@@ -187,7 +200,7 @@ namespace Linqlite.Linq
             var sql = gen.Generate(exp);
             Logger?.Log(sql);
             var elementType = TypeSystem.GetElementType(expression.Type);
-            var p = (SqlMemberProjectionExpression)((SqlSelectExpression)exp).Projection;
+            var p = ((SqlSelectExpression)exp).Projection;
             if (p != null) 
             {
                 elementType = p.Type;
@@ -473,7 +486,19 @@ namespace Linqlite.Linq
             }
         }
 
-        
+        private void ApplyPragmas()
+        {
+            using var cmd = Connection?.CreateCommand();
+
+            foreach (var pragma in _pragmas.ToSqlCommands())
+            {
+                cmd?.CommandText = pragma;
+                cmd?.ExecuteNonQuery();
+            }
+        }
+
+
+
     }
 
     enum TerminalOperator

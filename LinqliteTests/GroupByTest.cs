@@ -91,13 +91,36 @@ namespace LinqliteTests
 
               Assert.NotNull(_query);*/
 
-        }
+        }   
 
         [Fact]
         public void Rel1NAndNN()
         {
             var provider = new LinqliteProvider(connectionString);
-            List<Catalogue> ctas = provider.Table<Catalogue>().WithRelations().ToList();
+            //List<Catalogue> ctas = provider.Table<Catalogue>().WithRelations().ToList();
+            var ctas = provider.Table<Catalogue>().WithRelations().ToList();
+
+            int i = 0;
+        }
+
+
+        [Fact]
+        public void Rel1NAndNNManuelle()
+        {
+            var provider = new LinqliteProvider(connectionString);
+            var catalogs = provider.Table<Catalogue>();
+            var collections = provider.Table<Collection>(); 
+            var photocatalogs = provider.Table<PhotoCatalogue>();
+            var photos = provider.Table<Photo>();
+            var photoskeywords = provider.Table<PhotoKeyWords>();
+            var keywords = provider.Table<KeyWord>();
+
+            var ctas = catalogs.LeftJoin(collections, c => c.Id, col => col.CatalogueId, (c, col) => new { c, col }).Where(c => c.c.Id == 1)
+                               .LeftJoin(photocatalogs, x => x.c.Id, pc => pc.CatalogueId, (x, pc) => new { x, pc }).Where(pc => pc.pc.IsDeleted == false)
+                               .LeftJoin(photos, x => x.pc.PhotoId, p => p.Id, (x, p) => new { x, p })
+                               .LeftJoin(photoskeywords, x => x.p.Id, pk => pk.PhotoId, (x, pk) => new { x, pk })
+                               .LeftJoin(keywords, pk => pk.pk.KeyWordId, k => k.Id, (pk, k) => new { pk, k })
+                               .ToRootList<Catalogue>();
 
             int i = 0;
         }

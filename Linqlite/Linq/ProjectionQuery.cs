@@ -1,5 +1,6 @@
 ﻿using Linqlite.Hydration;
 using Linqlite.Linq.SqlExpressions;
+using Linqlite.Utils;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -28,14 +29,14 @@ namespace Linqlite.Linq
             while (reader.Read())
             {
                 T? e = default;
-                if(IsCSharpAnonymousType(typeof(T)))
+                if(TypesUtils.IsCSharpAnonymousType(typeof(T)))
                     e = HydratorBuilder.HydrateAnonymous<T>(reader,provider, infos);
-                if (IsLinqliteAnonymousType(typeof(T)))
+                if (TypesUtils.IsLinqliteAnonymousType(typeof(T)))
                     e = HydratorBuilder.HydrateLinqliteAnonymous<T>(reader, provider, infos);
-                else if (IsBaseType(typeof(T))){
+                else if (TypesUtils.IsBaseType(typeof(T))){
                     e = (T)reader.GetValue(0);
                 }
-                else if (IsDto(typeof(T)))
+                else if (TypesUtils.IsDto(typeof(T)))
                 {
                     e = HydratorBuilder.HydrateDto<T>(reader, infos);
                 }
@@ -46,26 +47,9 @@ namespace Linqlite.Linq
             return list;
         }
 
-        private static bool IsCSharpAnonymousType(Type t) => (t.Name.Contains("AnonymousType") && t.IsSealed && t.IsNotPublic);
-        private static bool IsLinqliteAnonymousType(Type t)
-        {
-            if(t.Name.Contains("Anon_"))
-                return true;
-            return false;
-        }
-        private static bool IsBaseType(Type t)
-        {
-            t = Nullable.GetUnderlyingType(t) ?? t; 
-                return t.IsPrimitive || 
-                       t.IsEnum || 
-                       t == typeof(string) || 
-                       t == typeof(decimal) || 
-                       t == typeof(DateTime) || 
-                       t == typeof(Guid) || 
-                       t == typeof(byte[]);
-        }
+        
+        
 
-        private static bool IsDto(Type t) => !IsBaseType(t) && !IsCSharpAnonymousType(t);
 
     }
 }

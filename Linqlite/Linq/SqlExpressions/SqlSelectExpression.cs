@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Text;
 using ZSpitz.Util;
 
@@ -9,12 +10,15 @@ namespace Linqlite.Linq.SqlExpressions
     {
         private readonly List<SqlOrderByExpression> _orders = [];
 
-        internal required SqlSourceExpression From { get; set; }
+        internal SqlSourceExpression From { get; set; }
         internal SqlExpression? Where { get; set; }
         internal AbstractSqlProjectionExpression? Projection { get; private set; }
+        internal AbstractSqlProjectionExpression? DefaultProjection { get; set; }
         internal IReadOnlyList<SqlOrderByExpression> Orders => _orders;
-        public Type ElementType { get; set; }
 
+        
+        public Type ElementType { get; set; }
+       
         public int? Offset { get; set; }
         public int? Limit { get; set; }
 

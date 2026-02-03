@@ -17,7 +17,8 @@ namespace Linqlite.Linq.SqlVisitor
             {
                 SqlSelectExpression _sqlSelect = new SqlSelectExpression(source.Type)
                 {
-                    From = (SqlSourceExpression)source
+                    From = (SqlSourceExpression)source,
+                    Where = builder.Where
                 };
                 builder.SetSelectSource(_sqlSelect);
             }

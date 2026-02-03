@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
@@ -8,60 +9,6 @@ namespace Linqlite.Linq.Relations
 {
     public static class JoinBuilder
     {
-
-        /*
-        public static IQueryable BuildJoin(
-            IQueryable leftSource,
-            Type leftType,
-            object rightTable,
-            Type rightType,
-            string leftKey,
-            string rightKey)
-        {
-            // 1. Construire les lambdas left => left.LeftKey et right => right.RightKey
-            // 2. Construire le resultSelector
-            // 3. Appeler Expression.Call(Queryable.LeftJoin, ...)
-            // 4. Retourner la nouvelle expression
-
-
-            var paramLeft = Expression.Parameter(leftType, "left");
-            var paramRight = Expression.Parameter(rightType, "right");
-
-
-
-
-            var _leftKey = Expression.Property(paramLeft, leftKey);
-            var _rightKey = Expression.Property(paramRight, rightKey);
-
-            var keySelectorLeft = Expression.Lambda(_leftKey, paramLeft);
-
-            var keyType = keySelectorLeft.Body.Type;
-
-            var keySelectorRight = BuildKeySelector(paramRight, _rightKey, keyType); //Expression.Lambda(_rightKey, paramRight);
-
-            var anonType = AnonymousTypeFactory.Create(new[] { ("Left", leftType), ("Right", rightType) });
-
-            var ctor = anonType.GetConstructors()[0]; 
-            var resultSelector = Expression.Lambda(
-                                    Expression.New(
-                                        ctor, 
-                                        new Expression[] { paramLeft, paramRight }, 
-                                        anonType.GetProperty("Left"), 
-                                        anonType.GetProperty("Right")), 
-                                    paramLeft, 
-                                    paramRight);
-
-            var leftJoinMethod = typeof(Queryable).GetMethods()
-                                    .First(m => m.Name == "LeftJoin" && m.GetParameters().Length == 5)
-                                    .MakeGenericMethod(leftType, rightType, _leftKey.Type, anonType);
-
-            //return Expression.Call(leftJoinMethod, leftSource.Expression, ((IQueryable)rightTable).Expression, keySelectorLeft, keySelectorRight, resultSelector);
-            //var call = Expression.Call(leftJoinMethod, leftSource.Expression, ((IQueryable)rightTable).Expression, keySelectorLeft, keySelectorRight, resultSelector);
-            var call = Expression.Call(leftJoinMethod, leftSource.Expression, ((IQueryable)rightTable).Expression, keySelectorLeft, keySelectorRight, resultSelector);
-            return leftSource.Provider.CreateQuery(call);
-        }
-        */
-
         public static IQueryable BuildJoin(
                                     IQueryable leftSource,
                                     Type leftType,          // ← tu ne dois plus utiliser ça
@@ -166,15 +113,22 @@ namespace Linqlite.Linq.Relations
 
         private static PropertyInfo FindSourceProperty(Type anonType, Type leftType)
         {
-            foreach (var prop in anonType.GetProperties())
-            {
-                if (prop.PropertyType == leftType)
-                    return prop;
+            using (StreamWriter file = new StreamWriter(@"E:\logtest.txt", true)) { 
+                file.WriteLine("=== FindSourceProperty ===");
+                file.WriteLine("LeftType = " + leftType.FullName);
+                file.WriteLine("AnonType = " + anonType.FullName);
+                file.WriteLine("Anon properties:");
+                foreach (var prop in anonType.GetProperties())
+                {
+                    file.WriteLine(" - " + prop.Name + " : " + prop.PropertyType.FullName);
+                    if (prop.PropertyType == leftType)
+                        return prop;
 
-                // Cas où le type anonyme contient un wrapper (Left, Right)
-                if (prop.PropertyType.IsGenericType &&
-                    prop.PropertyType.GetGenericArguments().Contains(leftType))
-                    return prop;
+                    // Cas où le type anonyme contient un wrapper (Left, Right)
+                    if (prop.PropertyType.IsGenericType &&
+                        prop.PropertyType.GetGenericArguments().Contains(leftType))
+                        return prop;
+                } 
             }
 
             throw new InvalidOperationException($"Impossible de trouver {leftType} dans {anonType}");

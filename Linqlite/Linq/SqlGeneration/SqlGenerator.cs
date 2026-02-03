@@ -9,16 +9,18 @@ namespace Linqlite.Linq.SqlGeneration
 {
     public sealed class SqlGenerator 
     { 
-        private readonly StringBuilder _sb = new();
+        private StringBuilder _sb = new();
         private int _aliasParam = 0;
         private Dictionary<string, object> _parameters = new();
+        private bool _hasProjection = false;
+        private List<SqlTableExpression> _tables = new();
 
         public IReadOnlyDictionary<string, object> Parameters { get => _parameters; }
         public string Generate(SqlExpression source) 
         {
             Visit(source);
-            string sql = _sb.ToString();
-            return sql; 
+            EnsureSelect();
+            return _sb.ToString(); 
         }
 
         private void Visit(SqlExpression source)
@@ -114,18 +116,19 @@ namespace Linqlite.Linq.SqlGeneration
 
         private void VisitTable(SqlTableExpression source)
         {
+            _tables.Add(source);
             _sb.Append($"{source.TableName} {source.Alias}");
         }
 
         private void VisitSelect(SqlSelectExpression source)
         {
-            _sb.Append("SELECT ");
-
             // Projection
             if (source.Projection != null)
+            {
+                _hasProjection = true;
+                _sb.Append("SELECT ");
                 VisitExpression(source.Projection);
-            else // A remplacer par la projection complète de l'entité //1_sb.Append(source.From.Alias).Append(".*");
-                _sb.Append(EntityMap.Get(source.ElementType).Projection(source.From.Alias));
+            }
 
             _sb.AppendLine();
             _sb.Append("FROM ");
@@ -188,39 +191,17 @@ namespace Linqlite.Linq.SqlGeneration
                 { 
                     _sb.Append(", ");
                 }
-                if (col.Value is SqlColumnExpression)
+                if (col.Value.Item2 is SqlColumnExpression)
                 {
-                    SqlColumnExpression colExpr = (SqlColumnExpression)col.Value;
+                    SqlColumnExpression colExpr = (SqlColumnExpression)col.Value.Item2;
                     _sb.Append($"{colExpr.Alias}.{colExpr.Column} AS {colExpr.Alias}_{colExpr.Column}");
                 }
-                else if(col.Value is SqlEntityProjectionExpression)
+                else if(col.Value.Item2 is SqlEntityProjectionExpression)
                 {
-                    /* int j = 0;
-                     SqlEntityReferenceExpression colExpr = (SqlEntityReferenceExpression)col.Value;
-                     foreach (var column in EntityMap.Get(colExpr.Type).Columns)
-                     {
-                         if (j > 0)
-                         {
-                             _sb.Append(", ");
-                         }
-                         _sb.Append($"{colExpr.Alias}.{column.ColumnName}");
-                         j++;
-                     }*/
-                    VisitEntityProjection((SqlEntityProjectionExpression)col.Value);
+                    VisitEntityProjection((SqlEntityProjectionExpression)col.Value.Item2);
                 }
-                else if(col.Value is SqlEntityReferenceExpression r)
+                else if(col.Value.Item2 is SqlEntityReferenceExpression r)
                 {
-                    /* int j = 0;
-                     foreach (var column in EntityMap.Get(r.Type).Columns)
-                     {
-                         if (j > 0)
-                         {
-                             _sb.Append(", ");
-                         }
-                         _sb.Append($"{r.Alias}.{column.ColumnName}");
-                         j++;
-                     }*/
-
                     _sb.Append(EntityMap.Get(r.Type).Projection(r.Alias));
                     
                 }
@@ -327,6 +308,31 @@ namespace Linqlite.Linq.SqlGeneration
                 VisitExpression(enu.Values[i]);
             }
             _sb.Append(")");
+        }
+
+        private void EnsureSelect()
+        {
+            if (_hasProjection)
+                return;
+
+            if (_tables.Count == 0)
+                throw new InvalidOperationException("Impossibkle de générer la projection de la requête. ");
+
+            StringBuilder select = new StringBuilder();
+            select.Append("SELECT ");
+            var i = 0;
+            foreach (var j in _tables)
+            {
+                if (i > 0) 
+                {  
+                    select.Append(", "); 
+                }
+                var p = EntityMap.Get(j.Type).Projection(j.Alias);
+                select.Append(p);
+                i++;
+            }
+            select.Append(_sb);
+            _sb = select;
         }
 
 

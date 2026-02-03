@@ -2,15 +2,20 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using ZSpitz.Util;
 
 namespace Linqlite.Linq
 {
     internal class RootEntityExtractor
     {
-        public static object ExtractRootEntities(IEnumerable<object> anonList)
+        public static object ExtractRootEntities(IEnumerable anonList)
         {
             //var result = new List<object>();
             var seen = new HashSet<object>();
+            if (anonList == null || anonList.ToObjectList().Count == 0) 
+            {
+                return new List<object>();
+            }
             var entityType = anonList.GetType().GetGenericArguments()[0].GetProperties()[0].PropertyType;
             var listType = typeof(List<>).MakeGenericType(entityType); 
             var list = (IList)Activator.CreateInstance(listType);

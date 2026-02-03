@@ -5,12 +5,15 @@ using Linqlite.Linq.SqlVisitor;
 using Linqlite.Logger;
 using Linqlite.Mapping;
 using Linqlite.Sqlite;
+using Linqlite.Utils;
 using Microsoft.Data.Sqlite;
+using OneOf.Types;
 using System.Collections;
 using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Xml.Linq;
@@ -30,6 +33,8 @@ namespace Linqlite.Linq
 
 
         internal SqliteConnection? Connection = null;
+        private bool _hasUserProjection = true;
+        private bool _fromTerminal = false;
 
         public ILinqliteLogger? Logger { get; set; }
 
@@ -66,7 +71,7 @@ namespace Linqlite.Linq
             Connect();
         }
 
-        bool IsEntityType(Type t) => typeof(SqliteEntity).IsAssignableFrom(t);
+       
 
         private void Connect()
         {
@@ -204,16 +209,23 @@ namespace Linqlite.Linq
             if (p != null) 
             {
                 elementType = p.Type;
-            }
-
-
-            if (IsEntityType(elementType))
-            {
-                return ExecuteEntitySequence(elementType,sql,mode,gen.Parameters);
+                _hasUserProjection = true;
             }
             else
             {
-                return ExecuteProjectionSequence(elementType, sql, gen.Parameters, (SqlMemberProjectionExpression)((SqlSelectExpression)exp).Projection);
+                p = ((SqlSelectExpression)exp).DefaultProjection;
+                elementType = p.Type;
+                _hasUserProjection = true;
+            }
+
+
+            if (TypesUtils.IsEntityType(elementType))
+            {
+                return ExecuteEntitySequence(elementType, sql, mode, gen.Parameters);
+            }
+            else
+            {
+                return ExecuteProjectionSequence(elementType, sql, gen.Parameters, (SqlMemberProjectionExpression)p);
             }
         }
 
@@ -299,20 +311,22 @@ namespace Linqlite.Linq
 
         private object? ExecuteTerminal(MethodCallExpression mce, TrackingMode mode)
         {
+            _fromTerminal = true;
             // La source de la requête (avant First/Single)
             var sourceExpression = mce.Arguments[0];
 
             // Exécuter la requête source
             var sequence = ExecuteSequence(sourceExpression, mode);
 
-            // Convertir en IEnumerable<T>
             var elementType = TypeSystem.GetElementType(sourceExpression.Type);
+       
+            var res = RootEntityExtractor.ExtractRootEntities((IEnumerable)sequence);
+
             var method = typeof(Enumerable).GetMethod(nameof(Enumerable.Cast));
             var castMethod = method?.MakeGenericMethod(elementType);
+            var casted = castMethod?.Invoke(null, new[] { res });
 
-            var casted = castMethod?.Invoke(null, new[] { sequence });
-
-
+            // Convertir en IEnumerable<T>
             return EnumerableTerminalOperator(elementType, casted, mce.Method.Name);
         }
 
@@ -357,21 +371,37 @@ namespace Linqlite.Linq
 
         public TResult Execute<TResult>(Expression expression)
         {
+           
             var result = Execute(expression);
             if(result == null && typeof(TResult).IsValueType == false) 
                 return default;
 
-            if (_isWithRelation)
+            if (typeof(TResult) == result.GetType()) // Cas   de retour atomique
+                return (TResult)result;
+            // Sinon, on a un enumerable
+            if (typeof(TResult).GetGenericArguments()[0] == result.GetType().GetGenericArguments()[0])
+                return (TResult)result;
+
+            if (!_fromTerminal && (_isWithRelation || _hasUserProjection))
             {
-                SqlWithRelationsExpression with = (SqlWithRelationsExpression)expression;
                 var enumerable = ((IEnumerable)result).Cast<object>();
-                return (TResult)RootEntityExtractor.ExtractRootEntities(enumerable);
+                var res = RootEntityExtractor.ExtractRootEntities(enumerable);
+
+                var objectList = ((IEnumerable)res).Cast<object>().ToList();
+
+                var anonType = typeof(TResult).GetGenericArguments()[0]; 
+                var wrapperType = typeof(FakeEnumerable<>).MakeGenericType(anonType); 
+                var wrapper = Activator.CreateInstance(wrapperType, objectList);
+
+                return (TResult)wrapper;
             }
 
             return result == null
                 ? throw new UnreachableException("Une  erreur est survenue lors de l'analyse de l'arbre d'expresssion.")
                 : (TResult)result;
         }
+
+
 
         internal IQueryableTableDefinition? FindRootTable(Expression expression)
         {
@@ -533,6 +563,71 @@ namespace Linqlite.Linq
         public IEnumerator<TElement> GetEnumerator() => _items.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
+
+    internal class SelectFinder : ExpressionVisitor
+    {
+        public bool Found { get; private set; }
+
+        public bool ContainsSelect(Expression expr)
+        {
+            Visit(expr);
+            return Found;
+        }
+
+        protected override Expression VisitMethodCall(MethodCallExpression node)
+        {
+            if (node.Method.Name == "Select"
+                && node.Method.DeclaringType == typeof(Queryable))
+            {
+                Found = true;
+            }
+
+            return base.VisitMethodCall(node);
+        }
+    }
+
+    class FakeEnumerable<TAnon> : IEnumerable<TAnon>
+    {
+        private readonly IEnumerable _inner;
+
+        public FakeEnumerable(IEnumerable inner)
+        {
+            _inner = inner;
+        }
+
+        public IEnumerator<TAnon> GetEnumerator()
+            => new FakeEnumerator<TAnon>(_inner.GetEnumerator());
+
+        IEnumerator IEnumerable.GetEnumerator()
+            => GetEnumerator();
+    }
+
+    class FakeEnumerator<TAnon> : IEnumerator<TAnon>
+    {
+        private readonly IEnumerator _inner;
+
+        public FakeEnumerator(IEnumerator inner)
+        {
+            _inner = inner;
+        }
+
+        public TAnon Current
+        {
+            get
+            {
+                // On renvoie l'objet tel quel, SANS cast réel
+                // Le cast (TAnon) ne sera jamais vérifié par LINQ
+                return (TAnon)_inner.Current;
+            }
+        }
+
+        object IEnumerator.Current => _inner.Current;
+
+        public bool MoveNext() => _inner.MoveNext();
+        public void Reset() => _inner.Reset();
+        public void Dispose() { }
+    }
+
 
 
 }

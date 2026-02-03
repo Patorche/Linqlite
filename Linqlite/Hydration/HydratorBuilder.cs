@@ -96,16 +96,27 @@ namespace Linqlite.Hydration
             int i = 0;
             foreach (var prop in props)
             {
-                var memberInfo = infos.Columns.Single(c => c.Key.Name == prop.Name);
+                var memberInfo = infos.Columns.Single(c => c.Key == prop.Name);
 
                 object value;
                 if (IsEntity(prop.PropertyType))
                 {
-                    SqlEntityReferenceExpression re = memberInfo.Value as SqlEntityReferenceExpression;
-                    
+                    string alias = "";
+                    if(memberInfo.Value.Item2 is SqlEntityReferenceExpression)
+                    {
+                        SqlEntityReferenceExpression re = memberInfo.Value.Item2 as SqlEntityReferenceExpression;
+                        alias = re.Alias;
+                    }
+                    else if(memberInfo.Value.Item2 is SqlEntityProjectionExpression)
+                    {
+                        var ep = memberInfo. Value.Item2 as SqlEntityProjectionExpression;
+                        alias = ep.Alias;
+                    }
+
+
                     var pkey = EntityMap.Get(prop.PropertyType).GetPrimaryKey();
 
-                    var key = reader.GetValue(re.Alias, pkey.ColumnName, pkey.PropertyType);
+                    var key = reader.GetValue(alias, pkey.ColumnName, pkey.PropertyType);
                     var identityKey = (prop.PropertyType, key);
 
                     if (_identityMap.TryGetValue(identityKey, out var existing))
@@ -114,7 +125,7 @@ namespace Linqlite.Hydration
                     }
                     else
                     {
-                        value = GetEntity(prop.PropertyType, reader, re.Alias);
+                        value = GetEntity(prop.PropertyType, reader, alias);
                     }
                     _identityMap[identityKey] = value;
                     prop.SetValue(instance, value);
@@ -153,7 +164,7 @@ namespace Linqlite.Hydration
 
                     // Hydrater l'entité
                     SqliteEntity? entity = null;
-                    SqlEntityProjectionExpression p = sqlExpr as SqlEntityProjectionExpression;
+                    SqlEntityProjectionExpression p = sqlExpr.Item2 as SqlEntityProjectionExpression;
                     string alias = p.Columns[i].Alias;
 
                     var pkey = EntityMap.Get(paramType).GetPrimaryKey();
@@ -188,9 +199,11 @@ namespace Linqlite.Hydration
                 {
                     // Cas 2 : scalaire
                     var raw = values[offset];
-                    args[i] = raw == DBNull.Value ? null : Convert.ChangeType(raw, paramType);
+                    var t = Nullable.GetUnderlyingType(paramType) ?? paramType;
+                    args[i] = raw == DBNull.Value ? null : Convert.ChangeType(raw, t);
                     offset++;
                 }
+                i++;
             }
 
             var item = (T)ctor.Invoke(args);
@@ -347,7 +360,7 @@ namespace Linqlite.Hydration
             reader.GetValues(values);
 
             // 2. Récupérer les membres projetés dans l’ordre du SELECT
-            var ordered = projection.Columns.ToList(); // ordre garanti par ton visitor
+            var ordered = projection.Columns.ToList(); // ordre garanti par le visitor
 
             // 3. Préparer les valeurs converties
             var converted = new object?[ordered.Count];
@@ -357,7 +370,8 @@ namespace Linqlite.Hydration
                 var member = ordered[i].Key;
                 var raw = values[i];
 
-                converted[i] = ConvertValue(raw, GetMemberType(member));
+                //converted[i] = ConvertValue(raw, GetMemberType(member));
+                converted[i] = ConvertValue(raw, GetMemberType(ordered[i].Value.Item1));
             }
 
             var type = typeof(T);
@@ -393,7 +407,7 @@ namespace Linqlite.Hydration
 
             for (int i = 0; i < ordered.Count; i++)
             {
-                var member = ordered[i].Key;
+                var member = ordered[i].Value.Item1;
                 var value = converted[i];
 
                 SetMemberValue(instance, member, value);

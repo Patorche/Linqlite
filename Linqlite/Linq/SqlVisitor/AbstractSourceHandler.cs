@@ -24,9 +24,20 @@ namespace Linqlite.Linq.SqlVisitor
                 case MemberInitExpression mie:
                     return HandleInitProjection(mie, builder, select);
 
+                case ParameterExpression pe:
+                    return HandleParameterProjection(pe, builder, select);
+
                 default:
                     throw new NotSupportedException($"Expression select non supportée: {body.NodeType}");
             }
+        }
+
+        private AbstractSqlProjectionExpression HandleParameterProjection(ParameterExpression pe, SqlTreeBuilderVisitor builder, SqlSelectExpression select)
+        {
+            var map = EntityMap.Get(pe.Type);
+            var members = new List<SqlColumnExpression>();
+            members = SqlExpressionHelper.GetFullProjection(pe.Type, select.From.Alias);
+            return new SqlEntityProjectionExpression(members, pe.Type);
         }
 
         private SqlMemberProjectionExpression HandleInitProjection(MemberInitExpression init, SqlTreeBuilderVisitor builder, SqlSelectExpression select)
@@ -34,7 +45,7 @@ namespace Linqlite.Linq.SqlVisitor
             if (init == null)
                 throw new UnreachableException("Tentative d'ajout d'une projection null !");
 
-            var members = new Dictionary<MemberInfo, SqlExpression>();
+            var members = new Dictionary<string, (MemberInfo?, SqlExpression)>();
 
             foreach (var binding in init.Bindings)
             {
@@ -43,7 +54,7 @@ namespace Linqlite.Linq.SqlVisitor
                     var sqlExpr = builder.Visit(assign.Expression) as SqlExpression;
                     if (sqlExpr == null)
                         throw new UnreachableException("Tentative d'ajout d'une projection null !");
-                    members.Add(assign.Member, sqlExpr);
+                    members.Add(assign.Member.Name, (assign.Member, sqlExpr));
                 }
                 else
                 {
@@ -62,16 +73,17 @@ namespace Linqlite.Linq.SqlVisitor
             {
                 var map = EntityMap.Get(er.Type);
                 var members = new List<SqlColumnExpression>();
-                members = GetFullProjection(er.Type, er.Alias);
+                members = SqlExpressionHelper.GetFullProjection(er.Type, er.Alias);
                 return new SqlEntityProjectionExpression(members, er.Type);
             }
 
             MemberInfo info = member.Member as MemberInfo;
-            Dictionary<System.Reflection.MemberInfo, SqlExpression> ms = new Dictionary<System.Reflection.MemberInfo, SqlExpression>();
-            ms.Add(info, sqlExpr);
+            Dictionary<string, (MemberInfo?, SqlExpression)> ms = new Dictionary<string, (MemberInfo?, SqlExpression)>();
+            ms.Add(info.Name, (info, sqlExpr));
             return new SqlMemberProjectionExpression(ms, member.Type);
         }
-        private List<SqlColumnExpression> GetFullProjection(Type type, string alias)
+
+   /*     private List<SqlColumnExpression> GetFullProjection(Type type, string alias)
         {
             var map = EntityMap.Get(type) ?? throw new InvalidDataException("Entité null retournée");
             var members = new List<SqlColumnExpression>();
@@ -91,7 +103,7 @@ namespace Linqlite.Linq.SqlVisitor
             }
             return members;
         }
-
+   */
         private SqlMemberProjectionExpression HandleNewProjection(NewExpression nex, SqlTreeBuilderVisitor builder, SqlSelectExpression select)
         {
             if (nex == null)
@@ -99,7 +111,7 @@ namespace Linqlite.Linq.SqlVisitor
 
             //var columns = nex.Arguments.Select(arg => (SqlExpression)builder.Visit(arg)).ToList();
 
-            var members = new Dictionary<MemberInfo, SqlExpression>();
+            var members = new Dictionary<string, (MemberInfo?, SqlExpression)>();
             for (int i = 0; i < nex.Arguments.Count; i++)
             {
                 var member = nex.Members?[i];
@@ -112,12 +124,12 @@ namespace Linqlite.Linq.SqlVisitor
                 {
                     var map = EntityMap.Get(entityProjection.Type);
                     var eCols = new List<SqlColumnExpression>();
-                    var projCols = GetFullProjection(entityProjection.Type, entityProjection.Alias);
+                    var projCols = SqlExpressionHelper.GetFullProjection(entityProjection.Type, entityProjection.Alias);
                     var proj = new SqlEntityProjectionExpression(projCols, entityProjection.Type);
-                    members.Add(member, proj);
+                    members.Add(member.Name, (member, proj));
                 }
                 else
-                    members.Add(member, sqlExpr);
+                    members.Add(member.Name, (member, sqlExpr));
             }
 
             return new SqlMemberProjectionExpression(members, nex.Type);

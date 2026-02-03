@@ -15,7 +15,7 @@ namespace LinqliteTests
             var provider = new LinqliteProvider("E:\\Dev\\Photolab.db\\photolab.db");
             var catalogues = provider.Table<Catalogue>();
             var sql = SqlFor(catalogues, provider);
-            Assert.Equal("SELECT t0.* FROM LIBRARY t0", sql);
+            Assert.Equal("SELECT t0.id AS t0_id, t0.name AS t0_name, t0.creation_date AS t0_creation_date FROM LIBRARY t0", sql);
         }
 
         [Fact]
@@ -25,7 +25,7 @@ namespace LinqliteTests
             var catalogues = provider.Table<Catalogue>();
 
             var sql = SqlFor(catalogues.Where(c => c.Id == 7), provider);
-            Assert.Equal("SELECT t0.* FROM LIBRARY t0 WHERE (t0.id = 7)", sql);
+            Assert.Equal("SELECT t0.id AS t0_id, t0.name AS t0_name, t0.creation_date AS t0_creation_date FROM LIBRARY t0 WHERE (t0.id = 7)", sql);
 
         }
 
@@ -36,7 +36,7 @@ namespace LinqliteTests
             var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder), provider);
-            Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename ASC, t0.folder ASC", sql);
+            Assert.Equal("SELECT t0.id AS t0_id, t0.filename AS t0_filename, t0.takendate AS t0_takendate, t0.folder AS t0_folder, t0.width AS t0_width, t0.height AS t0_height, t0.type AS t0_type, t0.author AS t0_author, t0.camera AS t0_camera, t0.make AS t0_make, t0.latitude AS t0_latitude, t0.longitude AS t0_longitude, t0.city AS t0_city, t0.country AS t0_country, t0.iso AS t0_iso, t0.aperture AS t0_aperture, t0.shutterspeed AS t0_shutterspeed, t0.focal AS t0_focal, t0.rate AS t0_rate, t0.thumbwidth AS t0_thumbwidth, t0.thumbheight AS t0_thumbheight, t0.orientation AS t0_orientation FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename ASC, t0.folder ASC", sql);
         }
 
         [Fact]
@@ -46,7 +46,7 @@ namespace LinqliteTests
             var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderByDescending(p => p.Filename), provider);
-            Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename DESC", sql);
+            Assert.Equal("SELECT t0.id AS t0_id, t0.filename AS t0_filename, t0.takendate AS t0_takendate, t0.folder AS t0_folder, t0.width AS t0_width, t0.height AS t0_height, t0.type AS t0_type, t0.author AS t0_author, t0.camera AS t0_camera, t0.make AS t0_make, t0.latitude AS t0_latitude, t0.longitude AS t0_longitude, t0.city AS t0_city, t0.country AS t0_country, t0.iso AS t0_iso, t0.aperture AS t0_aperture, t0.shutterspeed AS t0_shutterspeed, t0.focal AS t0_focal, t0.rate AS t0_rate, t0.thumbwidth AS t0_thumbwidth, t0.thumbheight AS t0_thumbheight, t0.orientation AS t0_orientation FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename DESC", sql);
         }
 
         [Fact]
@@ -56,7 +56,7 @@ namespace LinqliteTests
             var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Where(p => p.Id > 100).OrderBy(p => p.Filename).ThenBy(p => p.Folder).ThenByDescending(p => p.Width), provider);
-            Assert.Equal("SELECT t0.* FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename ASC, t0.folder ASC, t0.width DESC", sql);
+            Assert.Equal("SELECT t0.id AS t0_id, t0.filename AS t0_filename, t0.takendate AS t0_takendate, t0.folder AS t0_folder, t0.width AS t0_width, t0.height AS t0_height, t0.type AS t0_type, t0.author AS t0_author, t0.camera AS t0_camera, t0.make AS t0_make, t0.latitude AS t0_latitude, t0.longitude AS t0_longitude, t0.city AS t0_city, t0.country AS t0_country, t0.iso AS t0_iso, t0.aperture AS t0_aperture, t0.shutterspeed AS t0_shutterspeed, t0.focal AS t0_focal, t0.rate AS t0_rate, t0.thumbwidth AS t0_thumbwidth, t0.thumbheight AS t0_thumbheight, t0.orientation AS t0_orientation FROM PHOTO t0 WHERE (t0.id > 100) ORDER BY t0.filename ASC, t0.folder ASC, t0.width DESC", sql);
         }
 
         [Fact]
@@ -66,7 +66,7 @@ namespace LinqliteTests
             var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Take(100), provider);
-            Assert.Equal("SELECT t0.* FROM PHOTO t0 LIMIT 100", sql);
+            Assert.Equal("SELECT t0.id AS t0_id, t0.filename AS t0_filename, t0.takendate AS t0_takendate, t0.folder AS t0_folder, t0.width AS t0_width, t0.height AS t0_height, t0.type AS t0_type, t0.author AS t0_author, t0.camera AS t0_camera, t0.make AS t0_make, t0.latitude AS t0_latitude, t0.longitude AS t0_longitude, t0.city AS t0_city, t0.country AS t0_country, t0.iso AS t0_iso, t0.aperture AS t0_aperture, t0.shutterspeed AS t0_shutterspeed, t0.focal AS t0_focal, t0.rate AS t0_rate, t0.thumbwidth AS t0_thumbwidth, t0.thumbheight AS t0_thumbheight, t0.orientation AS t0_orientation FROM PHOTO t0 LIMIT 100", sql);
         }
 
         [Fact]
@@ -76,7 +76,7 @@ namespace LinqliteTests
             var photos = provider.Table<Photo>();
 
             var sql = SqlFor(photos.Skip(100), provider);
-            Assert.Equal("SELECT t0.* FROM PHOTO t0 LIMIT -1 OFFSET 100", sql);
+            Assert.Equal("SELECT t0.id AS t0_id, t0.filename AS t0_filename, t0.takendate AS t0_takendate, t0.folder AS t0_folder, t0.width AS t0_width, t0.height AS t0_height, t0.type AS t0_type, t0.author AS t0_author, t0.camera AS t0_camera, t0.make AS t0_make, t0.latitude AS t0_latitude, t0.longitude AS t0_longitude, t0.city AS t0_city, t0.country AS t0_country, t0.iso AS t0_iso, t0.aperture AS t0_aperture, t0.shutterspeed AS t0_shutterspeed, t0.focal AS t0_focal, t0.rate AS t0_rate, t0.thumbwidth AS t0_thumbwidth, t0.thumbheight AS t0_thumbheight, t0.orientation AS t0_orientation FROM PHOTO t0 LIMIT -1 OFFSET 100", sql);
         }
 
         [Fact]
@@ -93,7 +93,7 @@ namespace LinqliteTests
             var sql = SqlFor(query, provider);
 
             Assert.Equal(
-                "SELECT t0.id, t0.filename FROM PHOTO t0 ORDER BY t0.filename ASC, t0.id ASC",
+                "SELECT t0.id AS t0_id, t0.filename AS t0_filename FROM PHOTO t0 ORDER BY t0.filename ASC, t0.id ASC",
                 sql
             );
         }
@@ -114,7 +114,7 @@ namespace LinqliteTests
             var sql = SqlFor(query, provider);
 
             Assert.Equal(
-                "SELECT t0.* FROM PHOTO t0 JOIN LIBRARY t1 ON (t0.id = t1.id) ORDER BY t0.filename ASC, t1.creation_date ASC",
+                "SELECT t0.id AS t0_id, t0.filename AS t0_filename, t0.takendate AS t0_takendate, t0.folder AS t0_folder, t0.width AS t0_width, t0.height AS t0_height, t0.type AS t0_type, t0.author AS t0_author, t0.camera AS t0_camera, t0.make AS t0_make, t0.latitude AS t0_latitude, t0.longitude AS t0_longitude, t0.city AS t0_city, t0.country AS t0_country, t0.iso AS t0_iso, t0.aperture AS t0_aperture, t0.shutterspeed AS t0_shutterspeed, t0.focal AS t0_focal, t0.rate AS t0_rate, t0.thumbwidth AS t0_thumbwidth, t0.thumbheight AS t0_thumbheight, t0.orientation AS t0_orientation, t1.id AS t1_id, t1.name AS t1_name, t1.creation_date AS t1_creation_date FROM PHOTO t0 JOIN LIBRARY t1 ON (t0.id = t1.id) ORDER BY t0.filename ASC, t1.creation_date ASC",
                 sql
             );
         }
@@ -136,7 +136,7 @@ namespace LinqliteTests
             var sql = SqlFor(query, provider);
 
             Assert.Equal(
-                "SELECT t0.id, t0.filename, t1.id FROM PHOTO t0 JOIN LIBRARY t1 ON (t0.id = t1.id) ORDER BY t0.filename ASC, t0.id ASC, t1.id ASC",
+                "SELECT t0.id AS t0_id, t0.filename AS t0_filename, t1.id AS t1_id FROM PHOTO t0 JOIN LIBRARY t1 ON (t0.id = t1.id) ORDER BY t0.filename ASC, t0.id ASC, t1.id ASC",
                 sql
             );
         }

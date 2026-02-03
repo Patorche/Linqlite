@@ -21,6 +21,13 @@ namespace Linqlite.Linq.Relations
 
             foreach (var relation in relations)
             {
+                using (StreamWriter file = new StreamWriter(@"E:\rellogtest.txt", true))
+                {
+                    file.WriteLine("=== BuildWithRelations ===");
+                    file.WriteLine("LeftType = " + relation.LeftType.FullName);
+                    file.WriteLine("targetType = " + relation.TargetType.FullName);
+                    file.WriteLine("Relation :" + relation.GetType());
+                }
                 relation.ApplyJoins(ctx);
             }
             
@@ -42,9 +49,9 @@ namespace Linqlite.Linq.Relations
             if (!visited.Add(type))
                 return;
             var relations = EntityMap.Get(type).Relations;
+            result.AddRange(relations);
             foreach (var relation in relations)
             {
-                result.Add(relation);
                 ExploreRelations(relation.TargetType, visited, result);
             }
         }

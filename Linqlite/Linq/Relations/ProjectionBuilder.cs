@@ -1,4 +1,5 @@
 ﻿using Linqlite.Sqlite;
+using Linqlite.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
@@ -10,11 +11,16 @@ namespace Linqlite.Linq.Relations
     {
         public static LambdaExpression BuildProjectionLambda(Type anonType)
         {
+            if (TypesUtils.IsEntityType(anonType))
+            {
+                var eparam = Expression.Parameter(anonType, "p"); 
+                return Expression.Lambda(eparam, eparam);
+            }
             // Paramètre de la lambda : x =>
             var param = Expression.Parameter(anonType, "x");
 
             // Extraire toutes les entités du type anonyme final
-            var entities = ExtractEntities(anonType).ToList();
+            var entities = TypesUtils.ExtractEntities(anonType).ToList();
 
             // Construire la liste des propriétés du type anonyme final
             var props = entities
@@ -39,47 +45,15 @@ namespace Linqlite.Linq.Relations
                 // Ajouter le binding
                 bindings.Add(Expression.Bind(prop, access));
             }
-
+            var ctors = resultType.GetConstructors();
+            var withArgsctor = ctors.First(c => c.GetParameters().Length > 0);
             // new Anon_Final { ... }
-            var newExpr = Expression.MemberInit(
-                Expression.New(resultType),
-                bindings
-            );
+            var ctor = resultType.GetConstructor(Type.EmptyTypes);
+            var ne = Expression.New(ctor);
+            var newExpr = Expression.MemberInit(ne, bindings);
 
             // x => new Anon_Final { ... }
             return Expression.Lambda(newExpr, param);
-        }
-
-        public static IEnumerable<(string Path, Type EntityType)> ExtractEntities(Type type, string prefix = "")
-        {
-            if (!IsAnonymousType(type))
-                yield break;
-
-            foreach (var prop in type.GetProperties())
-            {
-                var propType = prop.PropertyType;
-                var path = string.IsNullOrEmpty(prefix) ? prop.Name : $"{prefix}.{prop.Name}";
-
-                if (IsEntityType(propType))
-                {
-                    yield return (path, propType);
-                }
-                else if (IsAnonymousType(propType))
-                {
-                    foreach (var nested in ExtractEntities(propType, path))
-                        yield return nested;
-                }
-            }
-        }
-
-        private static bool IsEntityType(Type propType)
-        {
-            return typeof(SqliteEntity).IsAssignableFrom(propType);
-        }
-
-        private static bool IsAnonymousType(Type type)
-        {
-            return type.Name.Contains("Anon");
         }
     }
 }

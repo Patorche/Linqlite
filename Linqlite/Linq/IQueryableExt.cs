@@ -1,9 +1,12 @@
 ﻿using Linqlite.Linq.SqlExpressions;
+using OneOf.Types;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
+using ZSpitz.Util;
 
 namespace Linqlite.Linq
 {
@@ -36,6 +39,27 @@ namespace Linqlite.Linq
             return source.Provider.CreateQuery<TOuter>(expr);
         }
 
+        public static List<T> ToRootList<T>(this IQueryable query)
+        {
+            // 1. Exécuter la requête LINQ → liste d’anonymes
+            Type anonType = query.ElementType;
+
+            var enumerable = (IEnumerable)query.Provider.Execute(query.Expression);
+
+            // 2. Convertir en liste d’objets
+            //var anonList = enumerable.Cast<object>().ToList();
+
+            // 2. Extraire les entités racines
+            //var entities = RootEntityExtractor.ExtractRootEntities(anonList);
+
+            //var enumerable = ((IEnumerable)anonList).Cast<object>();
+            var res = RootEntityExtractor.ExtractRootEntities(enumerable);
+
+            var objectList = ((IEnumerable)res).Cast<T>().ToList();
+
+            // 3. Retourner la liste propre
+            return objectList;
+        }
 
 
     }

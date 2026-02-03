@@ -1,12 +1,19 @@
 ﻿using Linqlite.Linq.Relations;
 using Linqlite.Linq.SqlExpressions;
 using Linqlite.Mapping;
+using Linqlite.Sqlite;
+using Linqlite.Utils;
+using OneOf.Types;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data.SqlTypes;
 using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Net.NetworkInformation;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -20,6 +27,8 @@ namespace Linqlite.Linq.SqlVisitor
         private int _aliasNumber;
         private readonly Dictionary<ParameterExpression, SqlExpression> _parameterScope = new Dictionary<ParameterExpression, SqlExpression>();
         private readonly LinqliteProvider _provider;
+        internal Dictionary<string, (MemberInfo?, SqlExpression)> TempProjection = new Dictionary<string, (MemberInfo?, SqlExpression)>();
+        internal SqlExpression? Where { get; set; }
 
 
         private static readonly Dictionary<string, IMethodCallHandler> _methodBuilders = new()
@@ -65,7 +74,13 @@ namespace Linqlite.Linq.SqlVisitor
             return base.VisitMethodCall(node);
         }
 
+        public override Expression Visit(Expression node)
+        {
+            var visited = base.Visit(node);
+            return visited;
+        }
 
+       
 
         public SqlExpression Build(Expression expression)
         {
@@ -76,11 +91,46 @@ namespace Linqlite.Linq.SqlVisitor
 
                 return sqlExpr;
 
-            
-            _sqlSelect ??= new SqlSelectExpression(sqlExpr.Type)
+
+            if(_sqlSelect == null)
             {
-                From = (SqlSourceExpression)sqlExpr
-            };
+                _sqlSelect = new SqlSelectExpression(sqlExpr.Type);
+            }            
+            
+            _sqlSelect.From = (SqlSourceExpression)sqlExpr;
+            _sqlSelect.Where = Where;
+
+            if(_sqlSelect.Projection == null)
+            {
+                if (!TempProjection.TryGetValue(sqlExpr.Type.Name, out var en))
+                {
+                    var members = SqlExpressionHelper.GetFullProjection(sqlExpr.Type, _sqlSelect.From.Alias);
+                    var ee = new SqlEntityProjectionExpression(members, sqlExpr.Type) { Alias = _sqlSelect.From.Alias };
+                    TempProjection[sqlExpr.Type.Name] = (null, ee);
+                }
+
+                var anon = expression.Type.GetGenericArguments()[0];
+                var props = new List<(string, Type)>();
+                if (typeof(SqliteEntity).IsAssignableFrom(anon)) // On n'est pas sur un type anonyme mais sur une entité
+                {
+                    props.Add((anon.Name, anon));
+                }
+                else
+                {
+                    var entities = TypesUtils.ExtractEntities(anon).ToList();
+                    props = entities
+                               .Select(e => (Name: e.EntityType.Name, Type: e.EntityType))
+                               .ToList();
+                }
+                // Générer le type anonyme final
+                var resultType = AnonymousTypeFactory.Create(props);
+
+                SqlMemberProjectionExpression sqlMemberProjectionExpression = new SqlMemberProjectionExpression(TempProjection, resultType);
+                _sqlSelect.DefaultProjection = sqlMemberProjectionExpression;
+                // Construction dutype anonyme du select Applatissement du type anonyme
+               
+            }
+            
             return _sqlSelect!;
         }
 
@@ -98,7 +148,7 @@ namespace Linqlite.Linq.SqlVisitor
 
         protected override Expression VisitMember(MemberExpression node)
         {
-            
+                      
             if (IsCapturedValue(node))
             {
                 var value = EvaluateCapturedValue(node);
@@ -148,12 +198,28 @@ namespace Linqlite.Linq.SqlVisitor
             {
                 if(table.Type == memberDeclaringType)
                 {
-                    return new SqlColumnExpression(((SqlTableExpression)table).Alias, GetColumnName(table.Type, node), node.Type);
+                    string alias = ((SqlTableExpression)table).Alias;
+                    if(!TempProjection.TryGetValue(table.Type.Name, out var exp))
+                    {
+                        var members = SqlExpressionHelper.GetFullProjection(table.Type, ((SqlTableExpression)table).Alias);
+                        var ee = new SqlEntityProjectionExpression(members, memberDeclaringType) { Alias = ((SqlTableExpression)table).Alias };
+                        
+                        TempProjection[table.Type.Name] = (node.Member, ee);
+                    }
+                    
+                    return new SqlColumnExpression(alias, GetColumnName(memberDeclaringType, node), node.Type);
                 }
             }
 
             if (node.Expression is MemberExpression inner)
             {
+                if(typeof(SqliteEntity).IsAssignableFrom(node.Expression.Type))
+                {
+                    var colName = GetColumnName(_sqlSource.Type, node);
+                    //if (select.Type == memberDeclaringType)
+                    // if (!string.IsNullOrEmpty(colName))
+                    return new SqlColumnExpression(((SqlSourceExpression)_sqlSource).Alias, colName, node.Expression.Type);
+                }
                 var target = EvaluateMemberExpression(inner);
                 var value = GetMemberValue(target, node.Member);
                 return new SqlParameterExpression(value, node.Type);
@@ -167,9 +233,10 @@ namespace Linqlite.Linq.SqlVisitor
                 {
                     if (_sqlSelect?.Projection is SqlMemberProjectionExpression proj)
                     {
-                        if (proj.Columns.TryGetValue(node.Member, out var exp))
+                        //if (proj.Columns.TryGetValue(node.Member, out var exp))
+                        if (proj.Columns.TryGetValue(node.Member.Name, out var exp))
                         {
-                            return exp;
+                            return exp.Item2;
                         }
                     }
                 }
@@ -215,8 +282,10 @@ namespace Linqlite.Linq.SqlVisitor
                 var entityType = q.ElementType; 
                 var map = EntityMap.Get(entityType) ?? throw new UnreachableException("EnityMap est null");
                 var tableName = map.TableName; 
-                var alias = GetNextAlias(); 
-                return new SqlTableExpression(tableName, alias, entityType); 
+                var alias = GetNextAlias();
+                var table = new SqlTableExpression(tableName, alias, entityType);
+
+                return table;
             }
             
 
@@ -364,6 +433,13 @@ namespace Linqlite.Linq.SqlVisitor
             return _sqlSelect;
         }
 
+        public void AddWhere(SqlExpression predicate)
+        {
+            if (Where == null)
+                Where = predicate;
+            else Where = new SqlBinaryExpression(Where, "AND", predicate);
+        }
+
         private static bool IsCapturedValue(MemberExpression node)
         {
             return GetRootExpression(node) is ConstantExpression;
@@ -423,7 +499,7 @@ namespace Linqlite.Linq.SqlVisitor
             return value;
         }
 
-        private static object? EvaluateMemberExpression(MemberExpression node)
+        private object? EvaluateMemberExpression(MemberExpression node)
         {
             if (node.Expression is ConstantExpression c)
                 return GetMemberValue(c.Value, node.Member);
@@ -435,7 +511,11 @@ namespace Linqlite.Linq.SqlVisitor
             }
             if(node.Expression is ParameterExpression)
             {
-
+                var colName = GetColumnName(_sqlSource.Type, node);
+                //if (select.Type == memberDeclaringType)
+               // if (!string.IsNullOrEmpty(colName))
+                    return new SqlColumnExpression(((SqlSourceExpression)_sqlSource).Alias, colName, node.Type);
+                int i = 0;
             }
 
                 throw new NotSupportedException($"Structure de variable non supportée {node?.Expression?.Type}");
@@ -466,4 +546,171 @@ namespace Linqlite.Linq.SqlVisitor
         }
 
     }
+
+    public sealed class LinqExpressionNormalizer : ExpressionVisitor
+    {
+
+        public LinqExpressionNormalizer()
+        {
+        }
+
+        public override Expression Visit(Expression node)
+        {
+            if (node == null)
+                return null;
+
+            var visited = base.Visit(node);
+            if (visited == null)
+                return null;
+
+            if (NeedsSelect(visited))
+                visited = AddSelect(visited);
+
+            return visited;
+        }
+
+        // -----------------------
+        // 1. Décider si on a besoin d’un Select auto
+        // -----------------------
+        private bool NeedsSelect(Expression expr)
+        {
+            // On ne traite que IQueryable<T>
+            if (!IsQueryable(expr.Type))
+                return false;
+
+            // Projection explicite ?
+            var projection = FindFinalProjection(expr);
+            if (projection == null)
+            {
+                // Projection implicite = x => x
+                var elementType = GetSequenceElementType(expr.Type);
+                return TypesUtils.IsEntityType(elementType);
+            }
+
+            // Projection explicite : on regarde si elle contient une entité
+            return ProjectionContainsEntity(projection.Body);
+        }
+
+        private bool IsQueryable(Type t)
+        {
+            return t.IsGenericType &&
+                   typeof(IQueryable<>).IsAssignableFrom(t.GetGenericTypeDefinition());
+        }
+
+        private Type GetSequenceElementType(Type t)
+        {
+            return t.GetGenericArguments()[0];
+        }
+
+     
+
+        private LambdaExpression FindFinalProjection(Expression expr)
+        {
+            if (expr is MethodCallExpression mce &&
+                mce.Method.Name == "Select" &&
+                mce.Arguments.Count == 2)
+            {
+                return (LambdaExpression)StripQuotes(mce.Arguments[1]);
+            }
+
+            return null;
+        }
+
+        private Expression StripQuotes(Expression e)
+        {
+            while (e.NodeType == ExpressionType.Quote)
+                e = ((UnaryExpression)e).Operand;
+            return e;
+        }
+
+        private bool ProjectionContainsEntity(Expression body)
+        {
+            switch (body.NodeType)
+            {
+                case ExpressionType.MemberInit:
+                    return ((MemberInitExpression)body)
+                        .Bindings
+                        .OfType<MemberAssignment>()
+                        .Any(b => ExpressionContainsEntity(b.Expression));
+
+                case ExpressionType.New:
+                    return ((NewExpression)body)
+                        .Arguments
+                        .Any(ExpressionContainsEntity);
+
+                default:
+                    return ExpressionContainsEntity(body);
+            }
+        }
+
+        private bool ExpressionContainsEntity(Expression expr)
+        {
+            if (expr == null)
+                return false;
+
+            var type = expr.Type;
+
+            if (TypesUtils.IsEntityType(type))
+                return true;
+
+            if (type.IsGenericType &&
+                typeof(IEnumerable<>).IsAssignableFrom(type.GetGenericTypeDefinition()))
+            {
+                var elementType = type.GetGenericArguments()[0];
+                return TypesUtils.IsEntityType(elementType);
+            }
+
+            return false;
+        }
+
+        
+
+        // -----------------------
+        // 2. Ajouter le Select auto
+        // -----------------------
+        private Expression AddSelect(Expression source)
+        {
+            // source : IQueryable<TSource>
+            var sourceType = GetSequenceElementType(source.Type);
+
+            // lambda de projection : TSource -> TSource (ou ton anonyme si tu veux)
+            var parameter = Expression.Parameter(sourceType, "x");
+            var body = parameter; // ici projection identité, tu peux brancher ton builder
+
+            var selector = Expression.Lambda(body, parameter);
+
+            var selectCall = Expression.Call(
+                typeof(Queryable),
+                "Select",
+                new[] { sourceType, body.Type },
+                source,
+                selector);
+
+            // Ici, tu peux soit :
+            // - laisser la projection telle quelle et gérer l’anonyme dans ton hydrateur
+            // - soit forcer le retour à l’entité racine via Cast
+
+            // Exemple simple : on force la séquence à être IQueryable<rootType>
+            var rootType = sourceType; // si ton root est connu autrement, adapte
+            var casted = RewriteSelectReturnType(selectCall, rootType);
+
+            return casted;
+        }
+
+        // -----------------------
+        // 3. Corriger le type générique via Cast
+        // -----------------------
+        private Expression RewriteSelectReturnType(Expression expr, Type rootType)
+        {
+            // expr : IQueryable<quelque chose>
+            // on enveloppe dans un Cast<rootType>()
+
+            return Expression.Call(
+                typeof(Queryable),
+                "Cast",
+                new[] { rootType },
+                expr);
+        }
+    }
+
 }

@@ -11,8 +11,12 @@ namespace Linqlite.Linq.SqlVisitor
         public SqlExpression Handle(MethodCallExpression node, SqlTreeBuilderVisitor builder)
         {
             var source = (SqlExpression)builder.Visit(node.Arguments[0]);
-
-            SqlSelectExpression selectExpression = SqlExpressionHelper.CreateSqlSelectExpression(node, source, builder, false);
+            builder.SetCurrentSource(source);
+            /* var selectExpression = builder.GetSelectSource();
+             if (selectExpression == null)
+             {
+                 selectExpression = SqlExpressionHelper.CreateSqlSelectExpression(node, source, builder, false);
+             }*/
             // 2. Extraire le lambda
             var lambda = (LambdaExpression)builder.StripQuotes(node.Arguments[1]);
 
@@ -20,9 +24,10 @@ namespace Linqlite.Linq.SqlVisitor
             var predicate = (SqlExpression)builder.Visit(builder.StripConvert(lambda.Body));
 
             // 4. Ajouter la clause WHERE au SELECT
-            selectExpression.AddWhere(predicate);
-            builder.SetCurrentSource(selectExpression);
-            return selectExpression;
+            builder.AddWhere(predicate);
+           // builder.SetSelectSource(selectExpression);
+            
+            return source;
         }
     }
 

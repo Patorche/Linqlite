@@ -10,5 +10,6 @@ namespace Linqlite.Linq.SqlExpressions
         public override Type Type { get; }
         protected SqlExpression(Type type) => Type = type;
         public override ExpressionType NodeType => ExpressionType.Extension;
+        
     }
 }

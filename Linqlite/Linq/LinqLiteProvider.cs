@@ -154,7 +154,9 @@ namespace Linqlite.Linq
         public object? Execute(Expression expression)
         {
             _isWithRelation = false;
-            var table = FindRootTable(expression);
+            _fromTerminal = false;
+            _hasUserProjection = false;
+           var table = FindRootTable(expression);
             var mode = table?.TrackingModeOverride ?? DefaultTrackingMode;
 
             if (expression is SqlWithRelationsExpression)
@@ -204,6 +206,7 @@ namespace Linqlite.Linq
             SqlGenerator gen = new SqlGenerator();
             var sql = gen.Generate(exp);
             Logger?.Log(sql);
+            
             var elementType = TypeSystem.GetElementType(expression.Type);
             var p = ((SqlSelectExpression)exp).Projection;
             if (p != null) 
@@ -311,6 +314,10 @@ namespace Linqlite.Linq
 
         private object? ExecuteTerminal(MethodCallExpression mce, TrackingMode mode)
         {
+            System.Diagnostics.Debug.WriteLine("Méthode terminale détectée :"); 
+            System.Diagnostics.Debug.WriteLine(" - Nom : " + mce.Method.Name); 
+            System.Diagnostics.Debug.WriteLine(" - Type : " + mce.Method.DeclaringType);
+            System.Diagnostics.Debug.WriteLine(" - Assembly : " + mce.Method.Module.Assembly.FullName);
             _fromTerminal = true;
             // La source de la requête (avant First/Single)
             var sourceExpression = mce.Arguments[0];

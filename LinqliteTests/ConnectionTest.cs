@@ -17,6 +17,7 @@ namespace LinqliteTests
         {
             var provider = new LinqliteProvider(connectionString, SqlitePragmas.Preset.InMemoryFast);
             var photos = provider.Table<Photo>(TrackingMode.Manual);
+            var q = provider.Table<Catalogue>().ToList();
 
             var query = photos.Where(p => p.Id >0).ToList();
 

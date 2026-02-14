@@ -45,7 +45,7 @@ namespace Linqlite.Hydration
             }
         }
 
-        public static object GetEntity(Type t, SqliteDataReader reader, string alias)
+        public static object GetEntity(LinqliteProvider provider, Type t, SqliteDataReader reader, string alias)
         {
             try
             {
@@ -64,6 +64,8 @@ namespace Linqlite.Hydration
                         int i = 0;
                     }
                 }
+                var table = provider.GetTable(t);
+                provider.Attach(entity, table.TrackingModeOverride);
                 entity.IsNew = false;
                 return entity;
             }
@@ -125,7 +127,7 @@ namespace Linqlite.Hydration
                     }
                     else
                     {
-                        value = GetEntity(prop.PropertyType, reader, alias);
+                        value = GetEntity(provider,prop.PropertyType, reader, alias);
                     }
                     _identityMap[identityKey] = value;
                     prop.SetValue(instance, value);
@@ -177,17 +179,18 @@ namespace Linqlite.Hydration
                     }
                     else
                     {
+                        entity = (SqliteEntity)GetEntity(provider, paramType, reader, alias);
                         var columns = EntityMap.Get(paramType).Columns;
-                        entity = (SqliteEntity)Activator.CreateInstance(paramType)!;
+                        /*entity = (SqliteEntity)Activator.CreateInstance(paramType)!;
                         foreach (var c in columns)
                         {
                             c.PropertyInfo.SetValue(entity, reader.GetValue(alias, c.ColumnName, c.PropertyType));
-                        }
+                        }*/
                         if (key != null)
                         {
                             _identityMap[identityKey] = entity;
                             // Attacher l'entité au provider (tracking)
-                            provider.Attach(entity, TrackingMode.AutoUpdate);
+                            
                         }
                     }
                     args[i] = entity;

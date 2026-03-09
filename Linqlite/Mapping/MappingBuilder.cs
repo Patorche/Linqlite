@@ -41,7 +41,7 @@ namespace Linqlite.Mapping
                 var onexone = prop.GetCustomAttribute<OnexOneAttribute>();
                 if (onexone != null)
                 {
-                    IRelation relation = new OnexOneRelation(type, prop.PropertyType.GetGenericArguments()[0], onexone.TargetKey, prop);
+                    IRelation relation = new OnexOneRelation(type, prop.PropertyType, onexone.TargetKey, prop);
 
                     relations.Add(relation);
                     continue; // on ignore leséventuels autres attributs qui n'ont pas de sens sur une relation nxn

@@ -305,7 +305,7 @@ namespace Linqlite.Linq
             var map = EntityMap.Get(entity.GetType()) ?? throw new UnreachableException("Tentative d'insertion' d'un objet non mappé");
             foreach (var column in map.Columns)
             {
-                if (column.IsPrimaryKey) continue;
+                if (column.IsPrimaryKey && column.IsAutoIncrement) continue;
 
                 columnsList += !first ? "," : "";
                 parametersList += !first ? "," : "";
@@ -337,7 +337,7 @@ namespace Linqlite.Linq
             var columns = map.Columns;
             foreach (var column in columns)
             {
-                if (column.IsPrimaryKey)
+                if (column.IsPrimaryKey && column.IsAutoIncrement)
                     continue;
                 if (string.IsNullOrEmpty(column.ColumnName))
                 {

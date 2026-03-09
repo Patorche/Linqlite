@@ -67,6 +67,7 @@ namespace Linqlite.Hydration
                 Type t when t == typeof(double) => reader.GetDouble(colAlias),
                 Type t when t == typeof(bool) => reader.GetBool(colAlias),
                 Type t when t == typeof(DateTime) => reader.GetDate(colAlias),
+                Type t when t == typeof(byte[]) => reader.GetBytes(colAlias),
 
                 // Hydratation d'entité via alias prefixé
                 Type t when t.IsSubclassOf(typeof(ObservableObject))
@@ -177,6 +178,21 @@ namespace Linqlite.Hydration
             catch
             {
                 return null;
+            }
+        }
+
+        public static double GetBytes(this SqliteDataReader reader, string columnName)
+        {
+            try
+            {
+                int index = GetCachedOrdinal(reader, columnName);
+                long length = reader.GetBytes(index, 0, null, 0, 0);
+                var buffer = new byte[length];
+                return reader.IsDBNull(index) ? 0.0 : reader.GetBytes(index, 0, buffer, 0, (int)length);
+            }
+            catch
+            {
+                return 0.0;
             }
         }
     }

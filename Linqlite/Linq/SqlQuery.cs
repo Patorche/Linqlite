@@ -370,6 +370,7 @@ namespace Linqlite.Linq
                     DateTime? date =  o as DateTime?;
                     object? strDate = date?.ToString("yyyy-MM-dd HH:mm:ss");
                     return strDate ?? DBNull.Value;
+                
                 default:
                     return property.GetValue(item) ?? DBNull.Value;
 

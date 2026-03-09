@@ -154,6 +154,9 @@ namespace Linqlite.Linq.SqlGeneration
             if (type.IsEnum)
                 return "INTEGER"; // SQLite stocke les enums comme int
 
+            if (type == typeof(byte[]))
+                return "BLOB"; // SQLite stocke les enums comme int
+
             // Fallback générique
             return "TEXT";
         }

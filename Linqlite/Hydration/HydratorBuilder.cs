@@ -243,7 +243,11 @@ namespace Linqlite.Hydration
                 {
                     BuildOnexNRelation(onex, entity, entities, item);
                 }
-                
+                else if (relation is OnexOneRelation onexone)
+                {
+                    BuildOnexOneRelation(onexone, entity, entities, item);
+                }
+
             }
         }
 
@@ -334,6 +338,35 @@ namespace Linqlite.Hydration
                     var addMethod = collection.GetType().GetMethod("Add");
                     addMethod.Invoke(collection, new[] { right });
 
+                }
+            }
+        }
+
+
+        private static void BuildOnexOneRelation<T>(OnexOneRelation relation, object entity, object?[] entities, T? item)
+        {
+            var left = entities.FirstOrDefault(e => e.GetType() == relation.LeftType);
+            var right = entities.FirstOrDefault(e => e.GetType() == relation.TargetType);
+
+            if (left == null || right == null) return;
+
+            var leftPKey = EntityMap.Get(left.GetType()).GetPrimaryKey();
+            var leftId = left.GetType().GetProperty(leftPKey.PropertyInfo.Name).GetValue(left);
+
+            var rightId = right.GetType().GetProperty(relation.TargetKey).GetValue(right);
+
+            if (leftId == null || rightId == null) return;
+
+            if (Equals(leftId, rightId))
+            {
+                var prop = entity.GetType().GetProperty(relation.Property.Name);
+                var property = prop.GetValue(entity);
+                if (property is null)
+                {
+                    var collectionType = prop.PropertyType;
+                    property = Activator.CreateInstance(collectionType);
+
+                    prop.SetValue(entity, property);
                 }
             }
         }

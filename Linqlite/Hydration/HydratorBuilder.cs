@@ -360,14 +360,14 @@ namespace Linqlite.Hydration
             if (Equals(leftId, rightId))
             {
                 var prop = entity.GetType().GetProperty(relation.Property.Name);
-                var property = prop.GetValue(entity);
+               /* var property = prop.GetValue(entity);
                 if (property is null)
                 {
                     var collectionType = prop.PropertyType;
                     property = Activator.CreateInstance(collectionType);
-
-                    prop.SetValue(entity, property);
-                }
+               */
+                    prop.SetValue(entity, right);
+                //}
             }
         }
 

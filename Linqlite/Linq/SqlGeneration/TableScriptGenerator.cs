@@ -21,13 +21,15 @@ namespace Linqlite.Linq.SqlGeneration
         public Type? EntityType => _type;
         public StringBuilder Script => _sb;
         
+        public List<string> Indexes { get; set; } = new();
+        public string TableName { get; set; }
         
         public void Build(Type type)
         {
             _type = type;
             var map = EntityMap.Get(type) ?? throw new InvalidDataException("Entité null retournée");
             bool hasColumn = false;
-
+            TableName = map.TableName;
             _sb.Append($"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" (").AppendLine();
             foreach (var column in map.Columns) 
             { 
@@ -95,6 +97,10 @@ namespace Linqlite.Linq.SqlGeneration
             if (column.IsUnique)
             {
                 _uniques.Add(new KeyValuePair<string, ConflictAction>(column.ColumnName, column.ConflictAction ?? ConflictAction.Ignore));
+            }
+            if (column.IsIndex)
+            {
+                Indexes.Add(column.ColumnName);
             }
             return sb;
         }

@@ -285,8 +285,13 @@ namespace Linqlite.Hydration
 
                     prop.SetValue(entity, collection);
                 }
-                var addMethod = collection.GetType().GetMethod("Add");
-                addMethod.Invoke(collection, new[] { right });
+                var rightPKey = EntityMap.Get(right.GetType()).GetPrimaryKey();
+                var rightIdValue = right.GetType().GetProperty(rightPKey.PropertyInfo.Name).GetValue(right);
+                if (!AllreadyExists(collection, right, rightPKey, rightIdValue))
+                {
+                    var addMethod = collection.GetType().GetMethod("Add");
+                    addMethod.Invoke(collection, new[] { right });
+                }
             }
         }
 
@@ -335,13 +340,24 @@ namespace Linqlite.Hydration
                         prop.SetValue(entity, collection);
                     }
                     //((IList)collection).Add(right);
-                    var addMethod = collection.GetType().GetMethod("Add");
-                    addMethod.Invoke(collection, new[] { right });
+                    if (!AllreadyExists(collection, right, rightPKey, joinRightId))
+                    {
+                        var addMethod = collection.GetType().GetMethod("Add");
+                        addMethod.Invoke(collection, new[] { right });
+                    }
 
                 }
             }
         }
 
+        private static bool AllreadyExists(object? collection, object right, EntityPropertyInfo rightPKey, object rightPk)
+        {
+            var list = (IEnumerable)collection;
+
+            var pkProp = right.GetType().GetProperty(rightPKey.PropertyInfo.Name);
+
+            return list?.Cast<object>().Any(x => Equals(pkProp?.GetValue(x), rightPk)) ?? false;
+        }
 
         private static void BuildOnexOneRelation<T>(OnexOneRelation relation, object entity, object?[] entities, T? item)
         {

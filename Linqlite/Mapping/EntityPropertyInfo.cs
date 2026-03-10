@@ -19,6 +19,7 @@ namespace Linqlite.Mapping
         public bool IsNotNull {  get; internal set; }
         public bool IsUnique { get; internal set; }
         public ConflictAction? ConflictAction { get; internal set; }
+        public bool IsIndex { get; set; } = false;
     }
 
 }

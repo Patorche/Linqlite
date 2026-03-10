@@ -2,6 +2,7 @@
 using Linqlite.Linq.Relations;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using ZSpitz.Util;
 using NotNullAttribute = Linqlite.Attributes.NotNullAttribute;
 
@@ -26,7 +27,7 @@ namespace Linqlite.Mapping
                     IRelation relation = new NxNRelation(type, prop.PropertyType.GetGenericArguments()[0], nxn.AssociationType, nxn.LeftKey, nxn.RightKey, prop);
                    
                     relations.Add(relation);
-                    continue; // on ignore leséventuels autres attributs qui n'ont pas de sens sur une relation nxn
+                    continue; 
                 }
 
                 var onexn = prop.GetCustomAttribute<OnexNAttribute>();
@@ -35,7 +36,7 @@ namespace Linqlite.Mapping
                     IRelation relation = new OnexNRelation(type, prop.PropertyType.GetGenericArguments()[0], onexn.TargetKey, prop);
 
                     relations.Add(relation);
-                    continue; // on ignore leséventuels autres attributs qui n'ont pas de sens sur une relation nxn
+                    continue; 
                 }
 
                 var onexone = prop.GetCustomAttribute<OnexOneAttribute>();
@@ -44,8 +45,10 @@ namespace Linqlite.Mapping
                     IRelation relation = new OnexOneRelation(type, prop.PropertyType, onexone.TargetKey, prop);
 
                     relations.Add(relation);
-                    continue; // on ignore leséventuels autres attributs qui n'ont pas de sens sur une relation nxn
+                    continue; 
                 }
+
+               
 
                 var colAttr = prop.GetCustomAttribute<ColumnAttribute>(); 
                 if (colAttr == null) // Propriété non mappée
@@ -55,7 +58,13 @@ namespace Linqlite.Mapping
                 propertyInfo.ColumnName = colAttr.ColumnName;
                 propertyInfo.PropertyInfo = prop;
                 isCol = true;
-                
+
+                var index = prop.GetCustomAttribute<IndexAttribute>();
+                if (index != null)
+                {
+                    propertyInfo.IsIndex = true;
+                }
+
                 var primary = prop.GetCustomAttribute<PrimaryKeyAttribute>();
                 if (primary != null)
                 {

@@ -1,6 +1,7 @@
 ﻿using Linqlite.Attributes;
 using Linqlite.Models;
 using Linqlite.Sqlite;
+using Photolab.Model;
 using System.Diagnostics.CodeAnalysis;
 using System.Windows.Input;
 
@@ -20,6 +21,8 @@ namespace Linqlite.Models
         private bool _isMenuOpen = false;
         private bool _isLoadingImage = false;
         private string? _author = null;
+        private Analysis? _analysis = null;
+
 
         public bool IsMenuOpen
         {
@@ -78,6 +81,13 @@ namespace Linqlite.Models
                 }
 
             }
+        }
+
+        [OnexOne(TargetKey = nameof(Analysis.PhotoId))]
+        public Analysis? Analysis
+        {
+            get => _analysis;
+            set => SetProperty(ref _analysis, value);
         }
 
         [NxN(AssociationType = typeof(PhotoKeyWords), LeftKey = nameof(PhotoKeyWords.PhotoId), RightKey = nameof(PhotoKeyWords.KeyWordId))]

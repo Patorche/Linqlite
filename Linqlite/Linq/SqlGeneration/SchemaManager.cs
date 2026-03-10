@@ -35,10 +35,24 @@ namespace Linqlite.Linq.SqlGeneration
             {
                 CreateTableIfNotExists(table);
                 UpdateTableIfNeeded(table?.EntityType);
+                CreateIndexesIfNotExists(table);
                 ;
                 sb.Append(table?.Script);
             }
             DatabaseScript = sb.ToString();
+        }
+
+        private void CreateIndexesIfNotExists(TableScriptGenerator? table)
+        {
+
+            foreach (var index in table.Indexes) 
+            {
+                var sql = $"CREATE INDEX IF NOT EXISTS idx_{table.TableName}_{index} ON {table.TableName}({index});";
+                SqliteCommand cmdTables = new SqliteCommand();
+                cmdTables.Connection = _provider.Connection;
+                cmdTables.CommandText = sql;
+                cmdTables.ExecuteNonQuery();
+            }
         }
 
         private void CreateTableIfNotExists(TableScriptGenerator table)

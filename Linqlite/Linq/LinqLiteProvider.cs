@@ -9,6 +9,7 @@ using Linqlite.Utils;
 using Microsoft.Data.Sqlite;
 using OneOf.Types;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
@@ -25,11 +26,13 @@ namespace Linqlite.Linq
 
         private static readonly HashSet<string> _terminalOperators = [.. Enum.GetNames<TerminalOperator>()];
         private readonly List<IQueryableTableDefinition> _queries = [];
-        private readonly Dictionary<object, PropertyChangedEventHandler> _handlers = [];
+        private readonly ConcurrentDictionary<object, PropertyChangedEventHandler> _handlers = [];
         private string _dbFilename = "";
         private SchemaManager _schemaManager;
         private bool _isWithRelation = false;
         private SqlitePragmas _pragmas;
+        internal SqliteTransaction? Transaction = null;
+        private static bool _sessionStarted = false;
 
 
         internal SqliteConnection? Connection = null;
@@ -42,12 +45,14 @@ namespace Linqlite.Linq
 
         public string? DatabaseScript => _schemaManager?.DatabaseScript;
 
+        
 
         public string DbFileName
         {
             get => _dbFilename;
             private set => _dbFilename = value;
         }
+        public static int BatchSize { get; internal set; }
 
         public LinqliteProvider()
         {
@@ -60,6 +65,7 @@ namespace Linqlite.Linq
             _pragmas = new SqlitePragmas(); 
             configure?.Invoke(_pragmas);
             _schemaManager = new SchemaManager(this);
+            SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_sqlite3());
             Connect();
         }
 
@@ -68,10 +74,29 @@ namespace Linqlite.Linq
             DbFileName = dbFilename;
             _pragmas = pragmas;
             _schemaManager = new SchemaManager(this);
+            SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_sqlite3());
             Connect();
         }
 
-       
+        public void Rollback()
+        {
+            Transaction?.Rollback();
+            Transaction?.Dispose();
+            Transaction = null;
+        }
+
+        public void Commit()
+        {
+            Transaction?.Commit();
+            Transaction?.Dispose();
+            Transaction = null;
+        }
+
+        public void BeginTransaction()
+        {
+            Transaction = Connection?.BeginTransaction();
+        }
+
 
         private void Connect()
         {
@@ -83,21 +108,17 @@ namespace Linqlite.Linq
             ApplyPragmas();
         }
 
-       /* public void Optimize()
+        private void ApplyPragmas()
         {
-            using (var command = Connection?.CreateCommand())
+            using var cmd = Connection?.CreateCommand();
+            
+            foreach (var pragma in _pragmas.ToSqlCommands())
             {
-                if (command == null) return;
-                command.CommandText = @"
-                    PRAGMA synchronous = OFF;
-                    PRAGMA journal_mode = MEMORY;
-                    PRAGMA temp_store = MEMORY;";
-                command?.ExecuteNonQuery();
+                cmd?.CommandText = pragma;
+                cmd?.ExecuteNonQuery();
             }
-        }*/
+        }
 
-
-      
         public IQueryable CreateQuery(Expression expression)
         {
             if (expression.Type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IOrderedQueryable<>)))
@@ -152,6 +173,8 @@ namespace Linqlite.Linq
             SqlQuery<T>.Update(entity, this);
         }
 
+
+      
 
         public object? Execute(Expression expression)
         {
@@ -451,21 +474,43 @@ namespace Linqlite.Linq
                 case TrackingMode.AutoUpdate:
                     if (_handlers.ContainsKey(entity)) return;
                     PropertyChangedEventHandler handler = (s, e) => { Update(entity, e?.PropertyName); };
-                    _handlers[entity] = handler;
+                    //_handlers[entity] = handler;
+
+                    _handlers.AddOrUpdate(
+                        entity,
+                        handler, // Valeur à ajouter si la clé n'existe pas
+                        (key, oldValue) => handler // Valeur à utiliser si la clé existe
+                    );
+
                     entity.PropertyChanged += handler;
+
+                    // Il faut regarder les propriétés qui sont des SqlEntity
+                    var properties = entity.GetType().GetProperties().Where(p => TypesUtils.IsEntityType(p.PropertyType));
+                    foreach(var p in properties)
+                    {
+                        var v = p.GetValue(entity) as SqliteEntity;
+                        if (v != null)
+                        {
+                            PropertyChangedEventArgs args = new PropertyChangedEventArgs(p.Name);
+                            v.PropertyChanged += (s, e) => { Update(entity, p.Name); };
+                        }
+                    }
                     break;
 
                 case TrackingMode.Manual:
                     break;
             }
         }
+private void V_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            throw new NotImplementedException();
+        }
 
         public void Detach(SqliteEntity entity)
         {
-            if (_handlers.TryGetValue(entity, out var handler))
+            if (_handlers.TryRemove(entity, out var handler))
             { 
-                entity.PropertyChanged -= handler; 
-                _handlers.Remove(entity); 
+                entity.PropertyChanged -= handler;
             }
         }
 
@@ -518,26 +563,40 @@ namespace Linqlite.Linq
 
         public async void Disconnect()
         {
-            if (Connection != null)
-            {
-                await Connection.CloseAsync();
-                Connection.Dispose();
-            }
+            Connection?.Close();
+            Connection?.Dispose();
         }
 
-        private void ApplyPragmas()
+       
+        public SqliteConnection CheckConnection()
         {
-            using var cmd = Connection?.CreateCommand();
-
-            foreach (var pragma in _pragmas.ToSqlCommands())
-            {
-                cmd?.CommandText = pragma;
-                cmd?.ExecuteNonQuery();
-            }
+            if(Connection == null)
+                throw new Exception("Impossible d'exécuter une requête, aucune connexion n'est définie.");
+            return Connection;
         }
 
+        internal void Log(string sql, SqliteParameterCollection parameters)
+        {
+            if(Logger!=null && Logger.LogQueries)
+                Logger?.Log(sql + "\r\n" + ToString(parameters));
+        }
 
+        private static string ToString(SqliteParameterCollection parameters)
+        {
+            string result = "";
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                result += $"[{parameters[i].ParameterName}] : {parameters[i].Value ?? "NULL"}\r\n";
+            }
 
+            return result;
+        }
+
+        public void StartBatchSession(int batch)
+        {
+            BatchSize = batch;
+            _sessionStarted = true;
+        }
     }
 
     enum TerminalOperator

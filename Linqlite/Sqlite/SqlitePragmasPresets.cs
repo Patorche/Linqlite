@@ -56,7 +56,7 @@ namespace Linqlite.Sqlite
             /// </summary>
             public static SqlitePragmas DesktopApp => new()
             {
-                JournalMode = SqliteJournalMode.Wal,
+                JournalMode = SqliteJournalMode.WAL,
                 Synchronous = SqliteSynchronousMode.Normal,
                 TempStore = SqliteTempStore.Default,
                 CacheSize = -2000,
@@ -79,7 +79,7 @@ namespace Linqlite.Sqlite
             /// </summary>
             public static SqlitePragmas HighWriteLoad => new()
             {
-                JournalMode = SqliteJournalMode.Wal,
+                JournalMode = SqliteJournalMode.WAL,
                 Synchronous = SqliteSynchronousMode.Off,
                 TempStore = SqliteTempStore.Memory,
                 CacheSize = -8000,

@@ -58,7 +58,7 @@ namespace Linqlite.Hydration
 
             if (!string.IsNullOrEmpty(columnName) && reader.IsDBNull(colAlias))
                 return null;
-            
+
             return type switch
             {
                 Type t when t == typeof(string) => reader.GetString(colAlias),
@@ -68,6 +68,7 @@ namespace Linqlite.Hydration
                 Type t when t == typeof(bool) => reader.GetBool(colAlias),
                 Type t when t == typeof(DateTime) => reader.GetDate(colAlias),
                 Type t when t == typeof(byte[]) => reader.GetBytes(colAlias),
+                Type t when t.IsArray => reader.GetArray(colAlias, t),
 
                 // Hydratation d'entité via alias prefixé
                 Type t when t.IsSubclassOf(typeof(ObservableObject))
@@ -93,7 +94,7 @@ namespace Linqlite.Hydration
             }
             return o;
         }
-        
+
         public static string GetString(this SqliteDataReader reader, string columnName)
         {
             try
@@ -181,19 +182,27 @@ namespace Linqlite.Hydration
             }
         }
 
-        public static double GetBytes(this SqliteDataReader reader, string columnName)
+        public static byte[]? GetBytes(this SqliteDataReader reader, string columnName)
         {
             try
             {
                 int index = GetCachedOrdinal(reader, columnName);
                 long length = reader.GetBytes(index, 0, null, 0, 0);
                 var buffer = new byte[length];
-                return reader.IsDBNull(index) ? 0.0 : reader.GetBytes(index, 0, buffer, 0, (int)length);
+                var l = reader.IsDBNull(index) ? 0.0 : reader.GetBytes(index, 0, buffer, 0, (int)length);
+                return buffer;
             }
             catch
             {
-                return 0.0;
+                return null;
             }
+        }
+
+
+        public static Array GetArray(this SqliteDataReader reader, string columnName, Type t)
+        {
+            byte[] res = GetBytes(reader, columnName);
+            return ArrayBlobConverter.FromBytes(t.GetElementType(), res);
         }
     }
 }

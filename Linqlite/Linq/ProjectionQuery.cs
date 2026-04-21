@@ -13,8 +13,8 @@ namespace Linqlite.Linq
     {
         public static List<T?> Execute(string sql, LinqliteProvider provider, IReadOnlyDictionary<string, object> parameters, SqlMemberProjectionExpression infos)
         {
-            if (provider.Connection == null) throw new ArgumentNullException("Aucune connection n'est active pour le Provider");
-            using var cmd = provider.Connection.CreateCommand();// sql, parameters);
+            var connection = provider.CheckConnection();
+            using var cmd = connection.CreateCommand();// sql, parameters);
             cmd.CommandText = sql;
             
             foreach (var parameter in parameters)

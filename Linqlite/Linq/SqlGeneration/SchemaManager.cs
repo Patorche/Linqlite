@@ -44,12 +44,13 @@ namespace Linqlite.Linq.SqlGeneration
 
         private void CreateIndexesIfNotExists(TableScriptGenerator? table)
         {
+            var connection = _provider.CheckConnection();
 
             foreach (var index in table.Indexes) 
             {
                 var sql = $"CREATE INDEX IF NOT EXISTS idx_{table.TableName}_{index} ON {table.TableName}({index});";
                 SqliteCommand cmdTables = new SqliteCommand();
-                cmdTables.Connection = _provider.Connection;
+                cmdTables.Connection = connection;
                 cmdTables.CommandText = sql;
                 cmdTables.ExecuteNonQuery();
             }
@@ -57,8 +58,9 @@ namespace Linqlite.Linq.SqlGeneration
 
         private void CreateTableIfNotExists(TableScriptGenerator table)
         {
+            var connection = _provider.CheckConnection();
             SqliteCommand cmdTables = new SqliteCommand();
-            cmdTables.Connection = _provider.Connection;
+            cmdTables.Connection = connection;
             cmdTables.CommandText = table.Script.ToString();
             cmdTables.ExecuteNonQuery();
         }
@@ -78,6 +80,7 @@ namespace Linqlite.Linq.SqlGeneration
             var existingColumns = GetExistingColumns(tableName);
 
             List<EntityPropertyInfo> columns = map.GetFlattedColumnsList();
+            var connection = _provider.CheckConnection();
             foreach (var col in columns)
             {
                 if (!existingColumns.Contains(col.ColumnName))
@@ -91,7 +94,7 @@ namespace Linqlite.Linq.SqlGeneration
                     }
 
                     SqliteCommand cmdTables = new SqliteCommand();
-                    cmdTables.Connection = _provider.Connection;
+                    cmdTables.Connection = connection;
                     cmdTables.CommandText = sql;
                     cmdTables.ExecuteNonQuery();
                 }
@@ -123,9 +126,11 @@ namespace Linqlite.Linq.SqlGeneration
 
         private List<string> GetExistingColumns(string tableName)
         {
+            var connection = _provider.CheckConnection();
+
             var sql = $"PRAGMA table_info({tableName});";
             SqliteCommand cmd = new SqliteCommand();
-            cmd.Connection = _provider.Connection;
+            cmd.Connection = connection;
             cmd.CommandText = sql;
             SqliteDataReader reader = cmd.ExecuteReader();
 

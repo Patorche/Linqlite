@@ -17,6 +17,7 @@ namespace Linqlite.Sqlite
            return changed;
         }
 
+        public SqliteEntity() { }
     }
 
 }

@@ -17,7 +17,7 @@ namespace Linqlite.Sqlite
         /// Mode de journalisation SQLite. WAL est généralement le meilleur compromis
         /// pour les applications desktop avec beaucoup de lectures.
         /// </summary>
-        public SqliteJournalMode JournalMode { get; set; } = SqliteJournalMode.Wal;
+        public SqliteJournalMode JournalMode { get; set; } = SqliteJournalMode.Delete;
 
         /// <summary>
         /// Niveau de synchronisation. Normal offre un bon compromis entre performance
@@ -117,7 +117,7 @@ namespace Linqlite.Sqlite
 
         public IEnumerable<string> ToSqlCommands()
         {
-            if (JournalMode != SqliteJournalMode.Wal)
+            if (JournalMode != SqliteJournalMode.Delete)
                 yield return $"PRAGMA journal_mode = {JournalMode.ToString().ToLowerInvariant()};";
 
             if (Synchronous != SqliteSynchronousMode.Normal)
@@ -187,7 +187,7 @@ namespace Linqlite.Sqlite
         Memory,
 
         /// <summary>Active le Write-Ahead Logging, permettant des lectures concurrentes pendant les écritures.</summary>
-        Wal,
+        WAL,
 
         /// <summary>Désactive la journalisation (risque élevé de corruption).</summary>
         Off

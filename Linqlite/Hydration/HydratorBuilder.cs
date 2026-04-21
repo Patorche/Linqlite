@@ -59,7 +59,7 @@ namespace Linqlite.Hydration
                     {
                         column.PropertyInfo.SetValue(entity, reader.GetValue(alias, column.ColumnName, column.PropertyType));
                     }
-                    catch (Exception) 
+                    catch (Exception ex) 
                     {
                         int i = 0;
                     }
